@@ -3,13 +3,14 @@ name: CI
 on:
   push:
     branches: [main]
-    tags: ['v*']
   pull_request:
     branches: [main]
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.set-version.outputs.version }}
 
     steps:
       - uses: actions/checkout@v4
@@ -20,14 +21,21 @@ jobs:
           dotnet-version: '10.0.x'
           dotnet-quality: 'preview'
 
+      - name: Compute Version
+        id: set-version
+        run: |
+          VERSION="0.1.${{ github.run_number }}"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
       - name: Restore
         run: dotnet restore
 
       - name: Build
-        run: dotnet build --no-restore -c Release
+        run: dotnet build --no-restore -c Release /p:Version="${{ env.VERSION }}"
 
       - name: Pack NuGet tool
-        run: dotnet pack src/Jellyfin.Cli/Jellyfin.Cli.csproj --no-build -c Release -o ./artifacts
+        run: dotnet pack src/Jellyfin.Cli/Jellyfin.Cli.csproj --no-build -c Release -o ./artifacts /p:Version="${{ env.VERSION }}"
 
       - name: Upload NuGet artifact
         uses: actions/upload-artifact@v4
@@ -38,23 +46,14 @@ jobs:
   publish:
     needs: build
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push'
 
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup .NET 10
-        uses: actions/setup-dotnet@v4
+      - name: Download NuGet Package
+        uses: actions/download-artifact@v4
         with:
-          dotnet-version: '10.0.x'
-          dotnet-quality: 'preview'
-
-      - name: Determine version from tag
-        id: version
-        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
-
-      - name: Pack with tag version
-        run: dotnet pack src/Jellyfin.Cli/Jellyfin.Cli.csproj -c Release -o ./artifacts -p:Version=${{ steps.version.outputs.VERSION }}
+          name: nuget-package
+          path: nuget-packages
 
       - name: Get Secrets
         uses: bitwarden/sm-action@v2
@@ -65,4 +64,6 @@ jobs:
             265b2fb6-2cf0-4859-9bc8-b24c00ab4378 > NUGET_API_KEY
 
       - name: Push to NuGet.org
-        run: dotnet nuget push ./artifacts/*.nupkg --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+        run: |
+          dotnet nuget push "nuget-packages/*.nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+          echo "Published version: ${{ needs.build.outputs.version }}"

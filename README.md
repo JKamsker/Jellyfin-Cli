@@ -1,5 +1,10 @@
 # Jellyfin CLI (`jf`)
 
+[![NuGet](https://img.shields.io/nuget/v/JellyfinCli.svg)](https://www.nuget.org/packages/JellyfinCli)
+[![NuGet Downloads](https://img.shields.io/nuget/dt/JellyfinCli.svg)](https://www.nuget.org/packages/JellyfinCli)
+[![CI](https://github.com/JKamsker/Jellyfin-Cli/actions/workflows/ci.yml/badge.svg)](https://github.com/JKamsker/Jellyfin-Cli/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/JKamsker/Jellyfin-Cli/blob/main/LICENSE)
+
 A command-line interface for [Jellyfin](https://jellyfin.org/) media server, built with .NET 10, Spectre.Console, and Kiota.
 
 ## Installation
