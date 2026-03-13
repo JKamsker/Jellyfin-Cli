@@ -71,6 +71,7 @@ app.Configure(config =>
         items.AddCommand<ItemsFavoriteCommand>("favorite").WithDescription("Mark or unmark favorites");
         items.AddCommand<ItemsRefreshCommand>("refresh").WithDescription("Refresh metadata, images, or trickplay");
         items.AddCommand<ItemsUpdateCommand>("update").WithDescription("Update item metadata");
+        items.AddCommand<ItemsRemoteSearchCommand>("remote-search").WithDescription("Search external metadata providers (TMDb, AniDB, IMDB, ...)");
         items.AddCommand<ItemsDownloadCommand>("download").WithDescription("Download original media or file");
         items.AddBranch("images", images =>
         {

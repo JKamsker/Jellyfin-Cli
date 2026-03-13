@@ -37,7 +37,7 @@ jf items search --query "Breaking Bad"
 |-------|----------|
 | `auth` | `login`, `logout`, `status` |
 | `server` | `info`, `ping`, `logs`, `activity`, `restart`, `shutdown` |
-| `items` | `list`, `get`, `search`, `latest`, `favorite`, `unfavorite`, `delete`, `resume` |
+| `items` | `list`, `get`, `search`, `remote-search`, `latest`, `favorite`, `unfavorite`, `delete`, `resume` |
 | `users` | `list`, `get`, `create`, `delete`, `password` |
 | `sessions` | `list`, `state` |
 | `library` | `refresh`, `scan` |

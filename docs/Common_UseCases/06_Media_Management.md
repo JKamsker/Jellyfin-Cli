@@ -81,6 +81,31 @@ jf items favorite set <ITEM_ID>
 jf items favorite unset <ITEM_ID>
 ```
 
+## Search external metadata providers
+
+Search TMDb, AniDB, IMDB, and other providers configured on your server:
+
+```bash
+# Search for a series (default type)
+jf items remote-search "Ajin"
+
+# Search for a movie
+jf items remote-search "The Matrix" --type Movie
+
+# Search a specific provider only
+jf items remote-search "The Matrix" --type Movie --provider TheMovieDb
+
+# Narrow by year
+jf items remote-search "The Matrix" --type Movie --provider TheMovieDb --year 1999
+
+# JSON output for scripting
+jf items remote-search "Ajin" --json
+```
+
+Supported types: `Movie`, `Series`, `BoxSet`, `Person`, `MusicArtist`, `MusicAlbum`, `MusicVideo`, `Book`, `Trailer`.
+
+Common provider names: `TheMovieDb`, `AniDB`, `The Open Movie Database` (IMDB/OMDb).
+
 ## Download media
 
 ```bash
