@@ -1,5 +1,11 @@
 Based on the uploaded Jellyfin 10.11.6 OpenAPI, I’d make this a task-first CLI named `jf`, not a tag-for-tag endpoint mirror. The spec covers normal user/admin workflows, but it also exposes low-level transport and telemetry surfaces like raw audio/video/HLS routes, playback progress reporting, and SyncPlay group control, so the help system should foreground the common tasks and push the transport/debug pieces into an advanced area.
 
+## Technology stack
+
+- **Runtime**: .NET (dotnet) — cross-platform, single-file publish, good for CLI tooling
+- **CLI framework**: [Spectre.Console.Cli](https://spectreconsole.net/cli/) — typed command/branch tree, rich help rendering, async support
+- **API client**: [Kiota](https://learn.microsoft.com/en-us/openapi/kiota/) — generates a strongly-typed HTTP client directly from the Jellyfin OpenAPI spec; no hand-written request code
+
 ## Core UX rules
 
 1. Top level is by **task domain**, not controller tag.
@@ -586,4 +592,4 @@ The most important product decisions here are:
 
 That gives you a CLI whose help reads like a product manual instead of a controller dump.
 
-Next implementation step is mapping each top-level help page to a Spectre `AddBranch()` tree, with `raw` and `--help-all` hidden by default.
+Next implementation step is mapping each top-level help page to a Spectre.Console.Cli `AddBranch()` tree, with `raw` and `--help-all` hidden by default. The Kiota-generated client lives in a separate project/assembly and is injected into each command via the DI container that Spectre.Console.Cli exposes through `ITypeRegistrar`.
