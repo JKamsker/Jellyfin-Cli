@@ -1,2 +1,10 @@
 bin/
 obj/
+.vs/
+*.user
+*.suo
+*.nupkg
+*.snupkg
+.idea/
+*.DotSettings.user
+artifacts/
