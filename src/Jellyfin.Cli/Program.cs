@@ -19,6 +19,13 @@ using Jellyfin.Cli.Common;
 using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console.Cli;
 
+Console.OutputEncoding = System.Text.Encoding.UTF8;
+
+// Ensure Spectre.Console has enough width to render tables even when the
+// terminal width cannot be detected (piped output, non-interactive shells).
+if (Spectre.Console.AnsiConsole.Profile.Width < 160)
+    Spectre.Console.AnsiConsole.Profile.Width = 160;
+
 var services = new ServiceCollection();
 services.AddSingleton<ApiClientFactory>();
 services.AddSingleton<CredentialStore>();

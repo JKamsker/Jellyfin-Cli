@@ -64,6 +64,30 @@ jf items search --query "Breaking Bad"
 | `--limit` | Limit number of results |
 | `--start` | Pagination offset |
 
+## Frequent Workflows
+
+### List libraries and browse their content
+
+```bash
+# List all media libraries (shows Id, Name, and Type for each library)
+jf library media
+
+# List items inside a specific library using its Id
+jf items list --parent <LIBRARY_ID>
+
+# Filter by item type (e.g. Series, Movie, Episode)
+jf items list --parent <LIBRARY_ID> --type Series
+
+# Sort and limit results
+jf items list --parent <LIBRARY_ID> --type Series --sort SortName --limit 10
+
+# Search recursively within a library
+jf items list --parent <LIBRARY_ID> --recursive --search "dragon"
+
+# Output as JSON for scripting
+jf items list --parent <LIBRARY_ID> --type Movie --json
+```
+
 ## Building from Source
 
 ```bash

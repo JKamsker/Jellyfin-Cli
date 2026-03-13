@@ -6,6 +6,8 @@ namespace Jellyfin.Cli.Common;
 
 public static class OutputHelper
 {
+    private const int MinConsoleWidth = 160;
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
@@ -21,6 +23,7 @@ public static class OutputHelper
 
     public static void WriteTable(Table table)
     {
+        EnsureMinimumWidth();
         AnsiConsole.Write(table);
     }
 
@@ -35,5 +38,16 @@ public static class OutputHelper
     public static bool Confirm(string prompt, bool defaultValue = false)
     {
         return AnsiConsole.Confirm(prompt, defaultValue);
+    }
+
+    /// <summary>
+    /// Ensures AnsiConsole.Profile.Width is at least <see cref="MinConsoleWidth"/>
+    /// so that tables don't collapse to a single character when the terminal width
+    /// cannot be detected (e.g. piped output, non-interactive shells).
+    /// </summary>
+    private static void EnsureMinimumWidth()
+    {
+        if (AnsiConsole.Profile.Width < MinConsoleWidth)
+            AnsiConsole.Profile.Width = MinConsoleWidth;
     }
 }
