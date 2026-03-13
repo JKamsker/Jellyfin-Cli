@@ -24,6 +24,7 @@ public sealed class ApiClientFactory
 
 internal sealed class TokenAuthenticationProvider : IAuthenticationProvider
 {
+    private static readonly string DeviceId = GetDeviceId();
     private readonly string? _token;
     private readonly string? _apiKey;
 
@@ -38,15 +39,37 @@ internal sealed class TokenAuthenticationProvider : IAuthenticationProvider
         Dictionary<string, object>? additionalAuthenticationContext = null,
         CancellationToken cancellationToken = default)
     {
+        var authValue = $"MediaBrowser Client=\"Jellyfin CLI\", Device=\"{Environment.MachineName}\", DeviceId=\"{DeviceId}\", Version=\"0.1.0\"";
+
         if (!string.IsNullOrEmpty(_token))
         {
-            request.Headers.Add("Authorization", $"MediaBrowser Token=\"{_token}\"");
+            authValue += $", Token=\"{_token}\"";
         }
         else if (!string.IsNullOrEmpty(_apiKey))
         {
-            request.Headers.Add("Authorization", $"MediaBrowser Token=\"{_apiKey}\"");
+            authValue += $", Token=\"{_apiKey}\"";
         }
 
+        request.Headers.Add("Authorization", authValue);
+
         return Task.CompletedTask;
+    }
+
+    private static string GetDeviceId()
+    {
+        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        var idFile = Path.Combine(appData, "jf", "device-id");
+
+        if (File.Exists(idFile))
+        {
+            var stored = File.ReadAllText(idFile).Trim();
+            if (!string.IsNullOrEmpty(stored))
+                return stored;
+        }
+
+        var id = Guid.NewGuid().ToString("N");
+        Directory.CreateDirectory(Path.GetDirectoryName(idFile)!);
+        File.WriteAllText(idFile, id);
+        return id;
     }
 }
