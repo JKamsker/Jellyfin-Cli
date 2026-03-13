@@ -6,6 +6,12 @@ Based on the uploaded Jellyfin 10.11.6 OpenAPI, I’d make this a task-first CLI
 - **CLI framework**: [Spectre.Console.Cli](https://spectreconsole.net/cli/) — typed command/branch tree, rich help rendering, async support
 - **API client**: [Kiota](https://learn.microsoft.com/en-us/openapi/kiota/) — generates a strongly-typed HTTP client directly from the Jellyfin OpenAPI spec; no hand-written request code
 
+## Code guidelines
+
+- **File size**: Hard limit 500 LOC per file; target 300 LOC.
+- **Feature-based structure**: Code is organised by feature, not by layer. Each command group lives under `Jellyfin.Cli/Commands/<Group>/`. Shared services or components that cross feature boundaries go into a `Common/` folder instead.
+- **Command/settings co-location**: Each command and its `Settings` class share the same file (`Jellyfin.Cli/Commands/<Group>/<Command>.cs`) unless the settings grow large enough to warrant a split.
+
 ## Core UX rules
 
 1. Top level is by **task domain**, not controller tag.
