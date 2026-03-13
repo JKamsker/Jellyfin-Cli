@@ -88,6 +88,19 @@ jf items list --parent <LIBRARY_ID> --recursive --search "dragon"
 jf items list --parent <LIBRARY_ID> --type Movie --json
 ```
 
+### More use cases
+
+Detailed guides with examples for common workflows:
+
+- [Authentication](docs/Common_UseCases/01_Authentication.md) -- Login, logout, Quick Connect, API key management
+- [Browsing Libraries](docs/Common_UseCases/02_Browsing_Libraries.md) -- List libraries, filter, sort, search, view item details
+- [Server Administration](docs/Common_UseCases/03_Server_Administration.md) -- Health checks, user management, tasks, plugins, backups
+- [Playback Control](docs/Common_UseCases/04_Playback_Control.md) -- Sessions, remote play/pause/seek, client messages
+- [Playlists and Collections](docs/Common_UseCases/05_Playlists_And_Collections.md) -- Create, manage items, reorder
+- [Media Management](docs/Common_UseCases/06_Media_Management.md) -- Update metadata, refresh, images, favorites, downloads
+- [Scripting and Automation](docs/Common_UseCases/07_Scripting_And_Automation.md) -- JSON output, pagination, raw API, shell integration
+- [SyncPlay](docs/Common_UseCases/08_SyncPlay.md) -- Synchronized group watching
+
 ## Building from Source
 
 ```bash
