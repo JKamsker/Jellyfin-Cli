@@ -47,7 +47,7 @@ app.Configure(config =>
         });
         auth.AddBranch("keys", keys =>
         {
-            keys.SetDescription("Manage API keys [admin]");
+            keys.SetDescription("Manage API keys [[admin]]");
             keys.AddCommand<KeysListCommand>("list").WithDescription("List API keys");
             keys.AddCommand<KeysCreateCommand>("create").WithDescription("Create an API key");
             keys.AddCommand<KeysDeleteCommand>("delete").WithDescription("Revoke an API key");
@@ -110,7 +110,7 @@ app.Configure(config =>
 
     config.AddBranch("users", users =>
     {
-        users.SetDescription("Manage Jellyfin users [admin]");
+        users.SetDescription("Manage Jellyfin users [[admin]]");
         users.AddCommand<UsersListCommand>("list").WithDescription("List users");
         users.AddCommand<UsersGetCommand>("get").WithDescription("Show one user");
         users.AddCommand<UsersCreateCommand>("create").WithDescription("Create a user");
@@ -122,7 +122,7 @@ app.Configure(config =>
 
     config.AddBranch("library", library =>
     {
-        library.SetDescription("Scan libraries and manage virtual folders [admin]");
+        library.SetDescription("Scan libraries and manage virtual folders [[admin]]");
         library.AddCommand<LibraryScanCommand>("scan").WithDescription("Start a full library refresh");
         library.AddCommand<LibraryFoldersListCommand>("folders").WithDescription("List virtual folders");
         library.AddCommand<LibraryMediaCommand>("media").WithDescription("Show media folders");
@@ -133,15 +133,15 @@ app.Configure(config =>
         server.SetDescription("Health, logs, config, restart, and shutdown");
         server.AddCommand<ServerPingCommand>("ping").WithDescription("Ping the server");
         server.AddCommand<ServerInfoCommand>("info").WithDescription("Show public or authenticated server info");
-        server.AddCommand<ServerActivityCommand>("activity").WithDescription("Show activity log entries [admin]");
-        server.AddCommand<ServerLogsCommand>("logs").WithDescription("List server logs [admin]");
-        server.AddCommand<ServerRestartCommand>("restart").WithDescription("Restart Jellyfin [admin]");
-        server.AddCommand<ServerShutdownCommand>("shutdown").WithDescription("Shut down Jellyfin [admin]");
+        server.AddCommand<ServerActivityCommand>("activity").WithDescription("Show activity log entries [[admin]]");
+        server.AddCommand<ServerLogsCommand>("logs").WithDescription("List server logs [[admin]]");
+        server.AddCommand<ServerRestartCommand>("restart").WithDescription("Restart Jellyfin [[admin]]");
+        server.AddCommand<ServerShutdownCommand>("shutdown").WithDescription("Shut down Jellyfin [[admin]]");
     });
 
     config.AddBranch("devices", devices =>
     {
-        devices.SetDescription("Inspect or remove registered devices [admin]");
+        devices.SetDescription("Inspect or remove registered devices [[admin]]");
         devices.AddCommand<DevicesListCommand>("list").WithDescription("List registered devices");
         devices.AddCommand<DevicesGetCommand>("get").WithDescription("Show one device");
         devices.AddCommand<DevicesDeleteCommand>("delete").WithDescription("Remove a device");
@@ -149,7 +149,7 @@ app.Configure(config =>
 
     config.AddBranch("tasks", tasks =>
     {
-        tasks.SetDescription("View and run scheduled tasks [admin]");
+        tasks.SetDescription("View and run scheduled tasks [[admin]]");
         tasks.AddCommand<TasksListCommand>("list").WithDescription("List tasks");
         tasks.AddCommand<TasksGetCommand>("get").WithDescription("Show one task");
         tasks.AddCommand<TasksStartCommand>("start").WithDescription("Start a task");
@@ -158,7 +158,7 @@ app.Configure(config =>
 
     config.AddBranch("backups", backups =>
     {
-        backups.SetDescription("Create and restore backups [admin]");
+        backups.SetDescription("Create and restore backups [[admin]]");
         backups.AddCommand<BackupsListCommand>("list").WithDescription("List backup archives");
         backups.AddCommand<BackupsCreateCommand>("create").WithDescription("Create a new backup");
         backups.AddCommand<BackupsRestoreCommand>("restore").WithDescription("Restore an archive and restart the server");
@@ -166,7 +166,7 @@ app.Configure(config =>
 
     config.AddBranch("plugins", plugins =>
     {
-        plugins.SetDescription("Configure, enable, disable, or uninstall plugins [admin]");
+        plugins.SetDescription("Configure, enable, disable, or uninstall plugins [[admin]]");
         plugins.AddCommand<PluginsListCommand>("list").WithDescription("List installed plugins");
         plugins.AddCommand<PluginsEnableCommand>("enable").WithDescription("Enable a plugin");
         plugins.AddCommand<PluginsDisableCommand>("disable").WithDescription("Disable a plugin");
