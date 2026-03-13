@@ -56,5 +56,13 @@ jobs:
       - name: Pack with tag version
         run: dotnet pack src/Jellyfin.Cli/Jellyfin.Cli.csproj -c Release -o ./artifacts -p:Version=${{ steps.version.outputs.VERSION }}
 
+      - name: Get Secrets
+        uses: bitwarden/sm-action@v2
+        with:
+          access_token: ${{ secrets.BW_ACCESS_TOKEN }}
+          base_url: https://vault.bitwarden.eu
+          secrets: |
+            265b2fb6-2cf0-4859-9bc8-b24c00ab4378 > NUGET_API_KEY
+
       - name: Push to NuGet.org
-        run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+        run: dotnet nuget push ./artifacts/*.nupkg --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
