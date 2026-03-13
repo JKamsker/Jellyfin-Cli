@@ -192,6 +192,8 @@ public abstract class RawCommandBase : AsyncCommand<RawSettings>
             {
                 server ??= stored.Server;
                 token ??= stored.Token;
+                if (string.IsNullOrEmpty(token))
+                    apiKey ??= stored.ApiKey;
             }
         }
 

@@ -12,7 +12,7 @@ public sealed class LoginSettings : GlobalSettings
 {
     [CommandOption("-u|--username <USERNAME>")]
     [Description("Jellyfin username")]
-    public string Username { get; set; } = string.Empty;
+    public string? Username { get; set; }
 
     [CommandOption("-p|--password <PASSWORD>")]
     [Description("Password (prompted if omitted)")]
@@ -23,8 +23,9 @@ public sealed class LoginSettings : GlobalSettings
         if (string.IsNullOrWhiteSpace(Server))
             return ValidationResult.Error("--server is required for login.");
 
-        if (string.IsNullOrWhiteSpace(Username))
-            return ValidationResult.Error("--username is required.");
+        // Either --api-key or --username must be provided
+        if (string.IsNullOrWhiteSpace(ApiKey) && string.IsNullOrWhiteSpace(Username))
+            return ValidationResult.Error("--username or --api-key is required.");
 
         return ValidationResult.Success();
     }
@@ -42,6 +43,45 @@ public sealed class LoginCommand : AsyncCommand<LoginSettings>
     }
 
     public override async Task<int> ExecuteAsync(CommandContext context, LoginSettings settings, CancellationToken cancellationToken)
+    {
+        // API key login: just store and verify
+        if (!string.IsNullOrWhiteSpace(settings.ApiKey))
+        {
+            return await LoginWithApiKey(settings);
+        }
+
+        return await LoginWithPassword(settings);
+    }
+
+    private async Task<int> LoginWithApiKey(LoginSettings settings)
+    {
+        var client = _clientFactory.CreateClient(settings.Server!, apiKey: settings.ApiKey);
+
+        try
+        {
+            var info = await client.System.Info.GetAsync();
+            _credentialStore.Save(new StoredCredentials
+            {
+                Server = settings.Server!,
+                ApiKey = settings.ApiKey!,
+            });
+
+            AnsiConsole.MarkupLine("[green]API key saved successfully.[/]");
+            var table = OutputHelper.CreateTable("Field", "Value");
+            table.AddRow("Server", settings.Server!);
+            table.AddRow("Server Name", info?.ServerName ?? "(unknown)");
+            table.AddRow("Auth", "API Key");
+            OutputHelper.WriteTable(table);
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            AnsiConsole.MarkupLine($"[red]API key verification failed:[/] {Markup.Escape(ex.Message)}");
+            return 1;
+        }
+    }
+
+    private async Task<int> LoginWithPassword(LoginSettings settings)
     {
         var password = settings.Password;
         if (string.IsNullOrEmpty(password))
@@ -66,7 +106,7 @@ public sealed class LoginCommand : AsyncCommand<LoginSettings>
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[red]Login failed:[/] {ex.Message}");
+            AnsiConsole.MarkupLine($"[red]Login failed:[/] {Markup.Escape(ex.Message)}");
             return 1;
         }
 

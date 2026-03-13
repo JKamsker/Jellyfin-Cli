@@ -12,9 +12,7 @@ public sealed class ServerPingSettings : GlobalSettings
 {
     public override ValidationResult Validate()
     {
-        if (string.IsNullOrWhiteSpace(Server))
-            return ValidationResult.Error("--server is required for ping.");
-
+        // Server can come from credential store at runtime, so don't require it here
         return ValidationResult.Success();
     }
 }
@@ -22,15 +20,28 @@ public sealed class ServerPingSettings : GlobalSettings
 public sealed class ServerPingCommand : AsyncCommand<ServerPingSettings>
 {
     private readonly ApiClientFactory _clientFactory;
+    private readonly CredentialStore _credentialStore;
 
-    public ServerPingCommand(ApiClientFactory clientFactory)
+    public ServerPingCommand(ApiClientFactory clientFactory, CredentialStore credentialStore)
     {
         _clientFactory = clientFactory;
+        _credentialStore = credentialStore;
     }
 
     public override async Task<int> ExecuteAsync(CommandContext context, ServerPingSettings settings, CancellationToken cancellationToken)
     {
-        var client = _clientFactory.CreateClient(settings.Server!);
+        var server = settings.Server;
+        if (string.IsNullOrEmpty(server))
+            server = _credentialStore.Load()?.Server;
+
+        if (string.IsNullOrEmpty(server))
+        {
+            AnsiConsole.MarkupLine("[red]Error:[/] --server is required, or run 'jf auth login' first.");
+            return 1;
+        }
+
+        settings.Server = server;
+        var client = _clientFactory.CreateClient(server);
 
         var stopwatch = Stopwatch.StartNew();
 

@@ -10,7 +10,11 @@ public sealed class ApiClientFactory
     public JellyfinApiClient CreateClient(string baseUrl, string? token = null, string? apiKey = null)
     {
         var authProvider = new TokenAuthenticationProvider(token, apiKey);
-        var adapter = new HttpClientRequestAdapter(authProvider)
+        var httpClient = new HttpClient(new GuidNormalizingHandler
+        {
+            InnerHandler = new HttpClientHandler(),
+        });
+        var adapter = new HttpClientRequestAdapter(authProvider, httpClient: httpClient)
         {
             BaseUrl = baseUrl.TrimEnd('/'),
         };

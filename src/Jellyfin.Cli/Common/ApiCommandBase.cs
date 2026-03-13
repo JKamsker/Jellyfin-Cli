@@ -96,6 +96,8 @@ public abstract class ApiCommand<TSettings> : AsyncCommand<TSettings> where TSet
             {
                 server ??= stored.Server;
                 token ??= stored.Token;
+                if (string.IsNullOrEmpty(token))
+                    apiKey ??= stored.ApiKey;
             }
         }
 

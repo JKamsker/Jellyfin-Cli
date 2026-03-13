@@ -35,6 +35,7 @@ public sealed class StoredCredentials
 {
     public string Server { get; set; } = string.Empty;
     public string Token { get; set; } = string.Empty;
+    public string ApiKey { get; set; } = string.Empty;
     public string UserId { get; set; } = string.Empty;
     public string UserName { get; set; } = string.Empty;
 }
