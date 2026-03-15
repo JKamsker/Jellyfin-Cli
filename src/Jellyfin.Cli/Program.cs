@@ -7,6 +7,7 @@ using Jellyfin.Cli.Commands.Items;
 using Jellyfin.Cli.Commands.Items.Images;
 using Jellyfin.Cli.Commands.Library;
 using Jellyfin.Cli.Commands.LiveTv;
+using Jellyfin.Cli.Commands.Packages;
 using Jellyfin.Cli.Commands.Plugins;
 using Jellyfin.Cli.Commands.Playlists;
 using Jellyfin.Cli.Commands.Raw;
@@ -150,11 +151,21 @@ app.Configure(config =>
         server.SetDescription("Health, logs, config, restart, and shutdown");
         server.AddCommand<ServerPingCommand>("ping").WithDescription("Ping the server");
         server.AddCommand<ServerInfoCommand>("info").WithDescription("Show public or authenticated server info");
+        server.AddCommand<ServerStorageCommand>("storage").WithDescription("Show server storage information [[admin]]");
+        server.AddCommand<ServerEndpointCommand>("endpoint").WithDescription("Show request endpoint information [[admin]]");
         server.AddCommand<ServerActivityCommand>("activity").WithDescription("Show activity log entries [[admin]]");
         server.AddCommand<ServerLogsCommand>("logs").WithDescription("List server logs [[admin]]");
+        server.AddBranch("log", log =>
+        {
+            log.SetDescription("Read individual server logs [[admin]]");
+            log.AddCommand<ServerLogGetCommand>("get").WithDescription("Read one server log file");
+        });
         server.AddBranch("config", serverConfig =>
         {
             serverConfig.SetDescription("Inspect and update server configuration [[admin]]");
+            serverConfig.AddCommand<ServerConfigGetCommand>("get").WithDescription("Get full config or one named config section");
+            serverConfig.AddCommand<ServerConfigSetCommand>("set").WithDescription("Update a named configuration section");
+            serverConfig.AddCommand<ServerConfigBrandingCommand>("branding").WithDescription("View or update branding configuration");
             serverConfig.AddCommand<ServerConfigMetadataCommand>("metadata").WithDescription("Show or update metadata configuration");
         });
         server.AddCommand<ServerRestartCommand>("restart").WithDescription("Restart Jellyfin [[admin]]");
@@ -193,6 +204,27 @@ app.Configure(config =>
         plugins.AddCommand<PluginsEnableCommand>("enable").WithDescription("Enable a plugin");
         plugins.AddCommand<PluginsDisableCommand>("disable").WithDescription("Disable a plugin");
         plugins.AddCommand<PluginsUninstallCommand>("uninstall").WithDescription("Uninstall a plugin");
+        plugins.AddBranch("config", pluginConfig =>
+        {
+            pluginConfig.SetDescription("Read or update plugin configuration [[admin]]");
+            pluginConfig.AddCommand<PluginsConfigGetCommand>("get").WithDescription("Read plugin configuration");
+            pluginConfig.AddCommand<PluginsConfigSetCommand>("set").WithDescription("Update plugin configuration");
+        });
+    });
+
+    config.AddBranch("packages", packages =>
+    {
+        packages.SetDescription("Browse repositories and install packages [[admin]]");
+        packages.AddCommand<PackagesListCommand>("list").WithDescription("List packages available from configured repositories");
+        packages.AddCommand<PackagesGetCommand>("get").WithDescription("Show details for one package");
+        packages.AddCommand<PackagesInstallCommand>("install").WithDescription("Install a package");
+        packages.AddCommand<PackagesCancelCommand>("cancel").WithDescription("Cancel an in-progress package installation");
+        packages.AddBranch("repos", repos =>
+        {
+            repos.SetDescription("Inspect or replace configured package repositories [[admin]]");
+            repos.AddCommand<PackagesReposListCommand>("list").WithDescription("List configured package repositories");
+            repos.AddCommand<PackagesReposSetCommand>("set").WithDescription("Replace the configured package repository list");
+        });
     });
 
     config.AddBranch("livetv", livetv =>
