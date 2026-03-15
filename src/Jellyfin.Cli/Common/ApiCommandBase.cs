@@ -9,6 +9,9 @@ public abstract class ApiCommand<TSettings> : AsyncCommand<TSettings> where TSet
 {
     private readonly ApiClientFactory _clientFactory;
     private readonly CredentialStore _credentialStore;
+    private string? _resolvedServer;
+    private string? _resolvedToken;
+    private string? _resolvedApiKey;
 
     protected ApiCommand(ApiClientFactory clientFactory, CredentialStore credentialStore)
     {
@@ -17,10 +20,16 @@ public abstract class ApiCommand<TSettings> : AsyncCommand<TSettings> where TSet
     }
 
     protected CredentialStore CredentialStore => _credentialStore;
+    protected string ResolvedServer => _resolvedServer ?? throw new InvalidOperationException("Resolved server is unavailable.");
+    protected string? ResolvedToken => _resolvedToken;
+    protected string? ResolvedApiKey => _resolvedApiKey;
 
     public override async Task<int> ExecuteAsync(CommandContext context, TSettings settings, CancellationToken cancellationToken)
     {
         var (server, token, apiKey) = ResolveCredentials(settings);
+        _resolvedServer = server;
+        _resolvedToken = token;
+        _resolvedApiKey = apiKey;
 
         if (string.IsNullOrEmpty(server))
         {
@@ -82,6 +91,31 @@ public abstract class ApiCommand<TSettings> : AsyncCommand<TSettings> where TSet
     }
 
     protected abstract Task<int> ExecuteAsync(CommandContext context, TSettings settings, JellyfinApiClient client, CancellationToken cancellationToken);
+
+    protected HttpClient CreateHttpClient()
+    {
+        return _clientFactory.CreateHttpClient(ResolvedServer, ResolvedToken, ResolvedApiKey);
+    }
+
+    protected async Task<Guid?> ResolveOptionalUserIdAsync(GlobalSettings settings, JellyfinApiClient client, CancellationToken cancellationToken)
+    {
+        if (Guid.TryParse(settings.User, out var userId))
+            return userId;
+
+        var stored = _credentialStore.Load();
+        if (Guid.TryParse(stored?.UserId, out userId))
+            return userId;
+
+        try
+        {
+            var me = await client.Users.Me.GetAsync(cancellationToken: cancellationToken);
+            return me?.Id;
+        }
+        catch
+        {
+            return null;
+        }
+    }
 
     private (string? server, string? token, string? apiKey) ResolveCredentials(GlobalSettings settings)
     {

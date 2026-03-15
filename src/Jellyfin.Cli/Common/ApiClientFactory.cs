@@ -20,6 +20,23 @@ public sealed class ApiClientFactory
         };
         return new JellyfinApiClient(adapter);
     }
+
+    public HttpClient CreateHttpClient(string baseUrl, string? token = null, string? apiKey = null)
+    {
+        var httpClient = new HttpClient(new GuidNormalizingHandler
+        {
+            InnerHandler = new HttpClientHandler(),
+        })
+        {
+            BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/"),
+        };
+
+        httpClient.DefaultRequestHeaders.TryAddWithoutValidation(
+            "Authorization",
+            TokenAuthenticationProvider.BuildAuthorizationHeader(token, apiKey));
+
+        return httpClient;
+    }
 }
 
 internal sealed class TokenAuthenticationProvider : IAuthenticationProvider
@@ -39,20 +56,25 @@ internal sealed class TokenAuthenticationProvider : IAuthenticationProvider
         Dictionary<string, object>? additionalAuthenticationContext = null,
         CancellationToken cancellationToken = default)
     {
-        var authValue = $"MediaBrowser Client=\"Jellyfin CLI\", Device=\"{Environment.MachineName}\", DeviceId=\"{DeviceId}\", Version=\"0.1.0\"";
-
-        if (!string.IsNullOrEmpty(_token))
-        {
-            authValue += $", Token=\"{_token}\"";
-        }
-        else if (!string.IsNullOrEmpty(_apiKey))
-        {
-            authValue += $", Token=\"{_apiKey}\"";
-        }
-
-        request.Headers.Add("Authorization", authValue);
+        request.Headers.Add("Authorization", BuildAuthorizationHeader(_token, _apiKey));
 
         return Task.CompletedTask;
+    }
+
+    internal static string BuildAuthorizationHeader(string? token, string? apiKey)
+    {
+        var authValue = $"MediaBrowser Client=\"Jellyfin CLI\", Device=\"{Environment.MachineName}\", DeviceId=\"{DeviceId}\", Version=\"0.1.0\"";
+
+        if (!string.IsNullOrEmpty(token))
+        {
+            authValue += $", Token=\"{token}\"";
+        }
+        else if (!string.IsNullOrEmpty(apiKey))
+        {
+            authValue += $", Token=\"{apiKey}\"";
+        }
+
+        return authValue;
     }
 
     private static string GetDeviceId()

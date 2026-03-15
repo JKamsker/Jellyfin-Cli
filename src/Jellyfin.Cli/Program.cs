@@ -66,6 +66,7 @@ app.Configure(config =>
         items.SetDescription("Browse, search, refresh, and update library items");
         items.AddCommand<ItemsListCommand>("list").WithDescription("Query items with filters");
         items.AddCommand<ItemsGetCommand>("get").WithDescription("Show one item by id");
+        items.AddCommand<ItemsLatestCommand>("latest").WithDescription("Inspect Jellyfin's latest-items shelf");
         items.AddCommand<ItemsSearchCommand>("search").WithDescription("Search names and titles");
         items.AddCommand<ItemsResumeCommand>("resume").WithDescription("Show continue-watching items");
         items.AddCommand<ItemsFavoriteCommand>("favorite").WithDescription("Mark or unmark favorites");
