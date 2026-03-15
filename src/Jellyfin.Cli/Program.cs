@@ -68,6 +68,8 @@ app.Configure(config =>
         items.AddCommand<ItemsGetCommand>("get").WithDescription("Show one item by id");
         items.AddCommand<ItemsLatestCommand>("latest").WithDescription("Inspect Jellyfin's latest-items shelf");
         items.AddCommand<ItemsSearchCommand>("search").WithDescription("Search names and titles");
+        items.AddCommand<ItemsDatesCommand>("dates").WithDescription("Show date fields used for latest-items diagnostics");
+        items.AddCommand<ItemsTreeCommand>("tree").WithDescription("Show a recursive item tree for diagnostics");
         items.AddCommand<ItemsResumeCommand>("resume").WithDescription("Show continue-watching items");
         items.AddCommand<ItemsFavoriteCommand>("favorite").WithDescription("Mark or unmark favorites");
         items.AddCommand<ItemsRefreshCommand>("refresh").WithDescription("Refresh metadata, images, or trickplay");
