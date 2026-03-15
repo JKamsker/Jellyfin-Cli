@@ -89,6 +89,13 @@ app.Configure(config =>
             images.AddCommand<ImagesSetCommand>("set").WithDescription("Upload an image for an item");
             images.AddCommand<ImagesDeleteCommand>("delete").WithDescription("Delete an image");
         });
+        items.AddBranch("remote-images", remoteImages =>
+        {
+            remoteImages.SetDescription("Browse or download remote item artwork");
+            remoteImages.AddCommand<ItemsRemoteImagesListCommand>("list").WithDescription("List available remote images");
+            remoteImages.AddCommand<ItemsRemoteImagesProvidersCommand>("providers").WithDescription("List remote image providers");
+            remoteImages.AddCommand<ItemsRemoteImagesDownloadCommand>("download").WithDescription("Download a remote image");
+        });
         items.AddBranch("subtitles", subtitles =>
         {
             subtitles.SetDescription("Search, download, upload, or delete subtitles");
@@ -215,6 +222,12 @@ app.Configure(config =>
         devices.AddCommand<DevicesListCommand>("list").WithDescription("List registered devices");
         devices.AddCommand<DevicesGetCommand>("get").WithDescription("Show one device");
         devices.AddCommand<DevicesDeleteCommand>("delete").WithDescription("Remove a device");
+        devices.AddBranch("options", deviceOptions =>
+        {
+            deviceOptions.SetDescription("Read or update per-device options [[admin]]");
+            deviceOptions.AddCommand<DevicesOptionsGetCommand>("get").WithDescription("Get device options");
+            deviceOptions.AddCommand<DevicesOptionsSetCommand>("set").WithDescription("Update device options");
+        });
     });
 
     config.AddBranch("tasks", tasks =>
@@ -230,6 +243,7 @@ app.Configure(config =>
     {
         backups.SetDescription("Create and restore backups [[admin]]");
         backups.AddCommand<BackupsListCommand>("list").WithDescription("List backup archives");
+        backups.AddCommand<BackupsInspectCommand>("inspect").WithDescription("Inspect a backup archive manifest");
         backups.AddCommand<BackupsCreateCommand>("create").WithDescription("Create a new backup");
         backups.AddCommand<BackupsRestoreCommand>("restore").WithDescription("Restore an archive and restart the server");
     });
