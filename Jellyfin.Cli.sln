@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jellyfin.Cli", "src\Jellyfi
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jellyfin.Cli.Api", "src\Jellyfin.Cli.Api\Jellyfin.Cli.Api.csproj", "{5DB851D4-9138-42E6-B863-15CE490F7F0F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jellyfin.Cli.Tests", "tests\Jellyfin.Cli.Tests\Jellyfin.Cli.Tests.csproj", "{B26611A4-3368-4043-8557-5C8699C7A688}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -43,6 +45,18 @@ Global
 		{5DB851D4-9138-42E6-B863-15CE490F7F0F}.Release|x64.Build.0 = Release|Any CPU
 		{5DB851D4-9138-42E6-B863-15CE490F7F0F}.Release|x86.ActiveCfg = Release|Any CPU
 		{5DB851D4-9138-42E6-B863-15CE490F7F0F}.Release|x86.Build.0 = Release|Any CPU
+		{B26611A4-3368-4043-8557-5C8699C7A688}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B26611A4-3368-4043-8557-5C8699C7A688}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B26611A4-3368-4043-8557-5C8699C7A688}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{B26611A4-3368-4043-8557-5C8699C7A688}.Debug|x64.Build.0 = Debug|Any CPU
+		{B26611A4-3368-4043-8557-5C8699C7A688}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{B26611A4-3368-4043-8557-5C8699C7A688}.Debug|x86.Build.0 = Debug|Any CPU
+		{B26611A4-3368-4043-8557-5C8699C7A688}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B26611A4-3368-4043-8557-5C8699C7A688}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B26611A4-3368-4043-8557-5C8699C7A688}.Release|x64.ActiveCfg = Release|Any CPU
+		{B26611A4-3368-4043-8557-5C8699C7A688}.Release|x64.Build.0 = Release|Any CPU
+		{B26611A4-3368-4043-8557-5C8699C7A688}.Release|x86.ActiveCfg = Release|Any CPU
+		{B26611A4-3368-4043-8557-5C8699C7A688}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -50,5 +64,6 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{AC9C063F-D777-44FD-9642-D483FE4F7AA2} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{5DB851D4-9138-42E6-B863-15CE490F7F0F} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{B26611A4-3368-4043-8557-5C8699C7A688} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal
