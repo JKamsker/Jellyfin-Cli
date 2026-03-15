@@ -278,6 +278,7 @@ app.Configure(config =>
         tasks.SetDescription("View and run scheduled tasks [[admin]]");
         tasks.AddCommand<TasksListCommand>("list").WithDescription("List tasks");
         tasks.AddCommand<TasksGetCommand>("get").WithDescription("Show one task");
+        tasks.AddCommand<TasksTriggersCommand>("triggers").WithDescription("Show task triggers or replace them with 'tasks triggers set <TASK_ID>'");
         tasks.AddCommand<TasksStartCommand>("start").WithDescription("Start a task");
         tasks.AddCommand<TasksStopCommand>("stop").WithDescription("Stop a running task");
     });
