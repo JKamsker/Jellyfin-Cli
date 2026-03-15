@@ -26,6 +26,7 @@ public abstract class ApiCommand<TSettings> : AsyncCommand<TSettings> where TSet
 
     public override async Task<int> ExecuteAsync(CommandContext context, TSettings settings, CancellationToken cancellationToken)
     {
+        HttpDiagnosticsContext.Clear();
         var (server, token, apiKey) = ResolveCredentials(settings);
         _resolvedServer = server;
         _resolvedToken = token;
@@ -54,9 +55,18 @@ public abstract class ApiCommand<TSettings> : AsyncCommand<TSettings> where TSet
                     var me = await tempClient.Users.Me.GetAsync(cancellationToken: cancellationToken);
                     settings.User = me?.Id?.ToString();
                 }
-                catch
+                catch (Exception ex) when (ex is not OperationCanceledException)
                 {
-                    AnsiConsole.MarkupLine("[yellow]Warning:[/] Could not resolve '--user me'. Proceeding without user context.");
+                    var logPath = CliErrorReporter.WriteDiagnosticLog(
+                        context,
+                        settings,
+                        ex,
+                        "Failed while resolving '--user me'. The command continued without a user-scoped query.");
+
+                    AnsiConsole.MarkupLine($"[yellow]Warning:[/] Could not resolve '--user me'. Proceeding without user context. {Markup.Escape(ex.Message)}");
+                    if (HttpDiagnosticsContext.LastExchange?.Url is { } requestUrl)
+                        AnsiConsole.MarkupLine($"[dim]Last request:[/] {Markup.Escape(requestUrl)}");
+                    AnsiConsole.MarkupLine($"[dim]Diagnostic log:[/] {Markup.Escape(logPath)}");
                     settings.User = null;
                 }
             }
@@ -70,22 +80,21 @@ public abstract class ApiCommand<TSettings> : AsyncCommand<TSettings> where TSet
         }
         catch (ApiException ex) when (ex.ResponseStatusCode >= 400)
         {
-            var status = ex.ResponseStatusCode;
-            var message = status switch
-            {
-                401 => "Authentication required. Run 'jf auth login' first.",
-                403 => "Permission denied. This may require admin privileges.",
-                404 => "Resource not found.",
-                _ => ex.Message,
-            };
-            AnsiConsole.MarkupLine($"[red]Error {status}:[/] {Markup.Escape(message)}");
-            if (settings.Verbose && !string.IsNullOrEmpty(ex.Message))
-                AnsiConsole.MarkupLine($"[dim]{Markup.Escape(ex.Message)}[/]");
+            CliErrorReporter.ReportApiException(context, settings, ex);
             return 1;
         }
         catch (HttpRequestException ex)
         {
-            AnsiConsole.MarkupLine($"[red]Network error:[/] {Markup.Escape(ex.Message)}");
+            CliErrorReporter.ReportNetworkException(context, settings, ex);
+            return 1;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            CliErrorReporter.ReportUnexpectedException(
+                context,
+                settings,
+                ex,
+                "Unexpected client error while executing the Jellyfin API call.");
             return 1;
         }
     }

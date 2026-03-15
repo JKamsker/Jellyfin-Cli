@@ -10,10 +10,7 @@ public sealed class ApiClientFactory
     public JellyfinApiClient CreateClient(string baseUrl, string? token = null, string? apiKey = null)
     {
         var authProvider = new TokenAuthenticationProvider(token, apiKey);
-        var httpClient = new HttpClient(new GuidNormalizingHandler
-        {
-            InnerHandler = new HttpClientHandler(),
-        });
+        var httpClient = new HttpClient(CreatePrimaryHandler());
         var adapter = new HttpClientRequestAdapter(authProvider, httpClient: httpClient)
         {
             BaseUrl = baseUrl.TrimEnd('/'),
@@ -23,10 +20,7 @@ public sealed class ApiClientFactory
 
     public HttpClient CreateHttpClient(string baseUrl, string? token = null, string? apiKey = null)
     {
-        var httpClient = new HttpClient(new GuidNormalizingHandler
-        {
-            InnerHandler = new HttpClientHandler(),
-        })
+        var httpClient = new HttpClient(CreatePrimaryHandler())
         {
             BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/"),
         };
@@ -36,6 +30,17 @@ public sealed class ApiClientFactory
             TokenAuthenticationProvider.BuildAuthorizationHeader(token, apiKey));
 
         return httpClient;
+    }
+
+    private static HttpMessageHandler CreatePrimaryHandler()
+    {
+        return new DiagnosticLoggingHandler
+        {
+            InnerHandler = new GuidNormalizingHandler
+            {
+                InnerHandler = new HttpClientHandler(),
+            },
+        };
     }
 }
 

@@ -55,10 +55,12 @@ public class RawSettings : GlobalSettings
 
 public abstract class RawCommandBase : AsyncCommand<RawSettings>
 {
+    private readonly ApiClientFactory _clientFactory;
     private readonly CredentialStore _credentialStore;
 
-    protected RawCommandBase(CredentialStore credentialStore)
+    protected RawCommandBase(ApiClientFactory clientFactory, CredentialStore credentialStore)
     {
+        _clientFactory = clientFactory;
         _credentialStore = credentialStore;
     }
 
@@ -67,6 +69,7 @@ public abstract class RawCommandBase : AsyncCommand<RawSettings>
     public override async Task<int> ExecuteAsync(
         CommandContext context, RawSettings settings, CancellationToken cancellationToken)
     {
+        HttpDiagnosticsContext.Clear();
         var (server, token, apiKey) = ResolveCredentials(settings);
 
         if (string.IsNullOrEmpty(server))
@@ -82,17 +85,7 @@ public abstract class RawCommandBase : AsyncCommand<RawSettings>
             AnsiConsole.MarkupLine($"[dim]{Method} {url}[/]");
         }
 
-        using var httpClient = new HttpClient();
-
-        // Auth
-        if (!string.IsNullOrEmpty(token))
-        {
-            httpClient.DefaultRequestHeaders.Add("Authorization", $"MediaBrowser Token=\"{token}\"");
-        }
-        else if (!string.IsNullOrEmpty(apiKey))
-        {
-            httpClient.DefaultRequestHeaders.Add("Authorization", $"MediaBrowser Token=\"{apiKey}\"");
-        }
+        using var httpClient = _clientFactory.CreateHttpClient(server, token, apiKey);
 
         // Custom headers
         if (settings.Headers is not null)
@@ -126,57 +119,89 @@ public abstract class RawCommandBase : AsyncCommand<RawSettings>
         }
 
         // Execute
-        using var response = await httpClient.SendAsync(
-            request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-
-        if (settings.Verbose)
+        HttpResponseMessage response;
+        try
         {
-            AnsiConsole.MarkupLine($"[dim]Status: {(int)response.StatusCode} {response.ReasonPhrase}[/]");
+            response = await httpClient.SendAsync(
+                request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         }
-
-        // Download mode
-        if (!string.IsNullOrEmpty(settings.Download))
+        catch (HttpRequestException ex)
         {
-            await using var fileStream = File.Create(settings.Download);
-            await response.Content.CopyToAsync(fileStream, cancellationToken);
-            AnsiConsole.MarkupLine($"[green]Downloaded to [white]{settings.Download}[/].[/]");
-            return response.IsSuccessStatusCode ? 0 : 1;
+            CliErrorReporter.ReportNetworkException(context, settings, ex);
+            return 1;
         }
-
-        // Read response body
-        var body = await response.Content.ReadAsStringAsync(cancellationToken);
-
-        if (!response.IsSuccessStatusCode)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            AnsiConsole.MarkupLine(
-                $"[red]Error {(int)response.StatusCode}:[/] {response.ReasonPhrase}");
-            if (!string.IsNullOrWhiteSpace(body))
-            {
-                AnsiConsole.WriteLine(body);
-            }
-
+            CliErrorReporter.ReportUnexpectedException(context, settings, ex, "Unexpected error while executing the raw HTTP request.");
             return 1;
         }
 
-        // Try to pretty-print JSON
-        if (!string.IsNullOrWhiteSpace(body))
+        using (response)
         {
-            try
+            if (settings.Verbose)
             {
-                using var doc = JsonDocument.Parse(body);
-                var formatted = JsonSerializer.Serialize(doc, new JsonSerializerOptions
-                {
-                    WriteIndented = true,
-                });
-                AnsiConsole.WriteLine(formatted);
+                AnsiConsole.MarkupLine($"[dim]Status: {(int)response.StatusCode} {response.ReasonPhrase}[/]");
             }
-            catch (JsonException)
-            {
-                AnsiConsole.WriteLine(body);
-            }
-        }
 
-        return 0;
+            // Download mode
+            if (!string.IsNullOrEmpty(settings.Download))
+            {
+                await using var fileStream = File.Create(settings.Download);
+                await response.Content.CopyToAsync(fileStream, cancellationToken);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    CliErrorReporter.ReportHttpFailure(context, settings, (int)response.StatusCode, response.ReasonPhrase);
+                    return 1;
+                }
+
+                AnsiConsole.MarkupLine($"[green]Downloaded to [white]{settings.Download}[/].[/]");
+                return 0;
+            }
+
+            // Read response body
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                CliErrorReporter.ReportHttpFailure(context, settings, (int)response.StatusCode, response.ReasonPhrase, body);
+                return 1;
+            }
+
+            // Try to pretty-print JSON
+            if (!string.IsNullOrWhiteSpace(body))
+            {
+                try
+                {
+                    using var doc = JsonDocument.Parse(body);
+                    var formatted = JsonSerializer.Serialize(doc, new JsonSerializerOptions
+                    {
+                        WriteIndented = true,
+                    });
+                    AnsiConsole.WriteLine(formatted);
+                }
+                catch (JsonException ex)
+                {
+                    var acceptLooksJson = settings.Accept?.Contains("json", StringComparison.OrdinalIgnoreCase) == true ||
+                                          body.TrimStart().StartsWith('{') ||
+                                          body.TrimStart().StartsWith('[');
+
+                    if (acceptLooksJson)
+                    {
+                        CliErrorReporter.ReportUnexpectedException(
+                            context,
+                            settings,
+                            ex,
+                            "The server returned a body that looked like JSON, but the CLI could not parse it.");
+                        AnsiConsole.MarkupLine("[dim]Raw body:[/]");
+                    }
+
+                    AnsiConsole.WriteLine(body);
+                }
+            }
+
+            return 0;
+        }
     }
 
     private (string? server, string? token, string? apiKey) ResolveCredentials(RawSettings settings)
@@ -222,7 +247,7 @@ public abstract class RawCommandBase : AsyncCommand<RawSettings>
 
 public sealed class RawGetCommand : RawCommandBase
 {
-    public RawGetCommand(CredentialStore credentialStore) : base(credentialStore)
+    public RawGetCommand(ApiClientFactory clientFactory, CredentialStore credentialStore) : base(clientFactory, credentialStore)
     {
     }
 
@@ -235,7 +260,7 @@ public sealed class RawGetCommand : RawCommandBase
 
 public sealed class RawPostCommand : RawCommandBase
 {
-    public RawPostCommand(CredentialStore credentialStore) : base(credentialStore)
+    public RawPostCommand(ApiClientFactory clientFactory, CredentialStore credentialStore) : base(clientFactory, credentialStore)
     {
     }
 
@@ -248,7 +273,7 @@ public sealed class RawPostCommand : RawCommandBase
 
 public sealed class RawPutCommand : RawCommandBase
 {
-    public RawPutCommand(CredentialStore credentialStore) : base(credentialStore)
+    public RawPutCommand(ApiClientFactory clientFactory, CredentialStore credentialStore) : base(clientFactory, credentialStore)
     {
     }
 
@@ -261,7 +286,7 @@ public sealed class RawPutCommand : RawCommandBase
 
 public sealed class RawDeleteCommand : RawCommandBase
 {
-    public RawDeleteCommand(CredentialStore credentialStore) : base(credentialStore)
+    public RawDeleteCommand(ApiClientFactory clientFactory, CredentialStore credentialStore) : base(clientFactory, credentialStore)
     {
     }
 
