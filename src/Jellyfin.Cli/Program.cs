@@ -76,14 +76,35 @@ app.Configure(config =>
         items.AddCommand<ItemsFavoriteCommand>("favorite").WithDescription("Mark or unmark favorites");
         items.AddCommand<ItemsRefreshCommand>("refresh").WithDescription("Refresh metadata, images, or trickplay");
         items.AddCommand<ItemsUpdateCommand>("update").WithDescription("Update item metadata");
+        items.AddCommand<ItemsDeleteCommand>("delete").WithDescription("Delete an item from the library and filesystem");
         items.AddCommand<ItemsRemoteSearchCommand>("remote-search").WithDescription("Search external metadata providers (TMDb, AniDB, IMDB, ...)");
         items.AddCommand<ItemsDownloadCommand>("download").WithDescription("Download original media or file");
+        items.AddCommand<ItemsSimilarCommand>("similar").WithDescription("Find similar items");
+        items.AddCommand<ItemsSuggestionsCommand>("suggestions").WithDescription("Show suggested items for the current user");
+        items.AddCommand<ItemsCountsCommand>("counts").WithDescription("Show library item counts");
         items.AddBranch("images", images =>
         {
             images.SetDescription("Manage item artwork");
             images.AddCommand<ImagesListCommand>("list").WithDescription("List known images for an item");
             images.AddCommand<ImagesSetCommand>("set").WithDescription("Upload an image for an item");
             images.AddCommand<ImagesDeleteCommand>("delete").WithDescription("Delete an image");
+        });
+        items.AddBranch("subtitles", subtitles =>
+        {
+            subtitles.SetDescription("Search, download, upload, or delete subtitles");
+            subtitles.AddCommand<ItemsSubtitlesSearchCommand>("search").WithDescription("Search remote subtitle providers");
+            subtitles.AddCommand<ItemsSubtitlesDownloadCommand>("download").WithDescription("Download a remote subtitle");
+            subtitles.AddCommand<ItemsSubtitlesUploadCommand>("upload").WithDescription("Upload an external subtitle file");
+            subtitles.AddCommand<ItemsSubtitlesDeleteCommand>("delete").WithDescription("Delete an external subtitle file");
+        });
+        items.AddBranch("lyrics", lyrics =>
+        {
+            lyrics.SetDescription("Read, search, download, upload, or delete lyrics");
+            lyrics.AddCommand<ItemsLyricsGetCommand>("get").WithDescription("Get lyrics for an audio item");
+            lyrics.AddCommand<ItemsLyricsSearchCommand>("search").WithDescription("Search remote lyric providers");
+            lyrics.AddCommand<ItemsLyricsDownloadCommand>("download").WithDescription("Download remote lyrics");
+            lyrics.AddCommand<ItemsLyricsUploadCommand>("upload").WithDescription("Upload an external lyric file");
+            lyrics.AddCommand<ItemsLyricsDeleteCommand>("delete").WithDescription("Delete external lyrics");
         });
         items.AddBranch("nfo", nfo =>
         {
