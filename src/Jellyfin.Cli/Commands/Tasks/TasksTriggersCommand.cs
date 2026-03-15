@@ -220,7 +220,9 @@ public sealed class TasksTriggersCommand : ApiCommand<TasksTriggersSettings>
                 ? JsonCommandHelper.DeserializeFromFileOrInline<List<TaskTriggerInfo>>(settings.FilePath, settings.InlineJson, "--file/--data")
                 : settings.BuildTriggers();
 
-            await client.ScheduledTasks[task.Id ?? taskIdentifier].Triggers.PostAsync(triggers, cancellationToken: cancellationToken);
+            await client.ScheduledTasks[TasksCommandHelper.GetRouteIdentifier(task, taskIdentifier)].Triggers.PostAsync(
+                triggers,
+                cancellationToken: cancellationToken);
 
             if (settings.Json)
             {

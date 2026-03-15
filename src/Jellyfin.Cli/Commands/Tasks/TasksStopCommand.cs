@@ -11,7 +11,7 @@ namespace Jellyfin.Cli.Commands.Tasks;
 public sealed class TasksStopSettings : GlobalSettings
 {
     [CommandArgument(0, "<TASK_ID>")]
-    [Description("The ID of the running task to stop")]
+    [Description("The ID, key, or name of the running task to stop")]
     public string TaskId { get; set; } = string.Empty;
 
     public override ValidationResult Validate()
@@ -33,9 +33,16 @@ public sealed class TasksStopCommand : ApiCommand<TasksStopSettings>
     protected override async Task<int> ExecuteAsync(
         CommandContext context, TasksStopSettings settings, JellyfinApiClient client, CancellationToken cancellationToken)
     {
-        await client.ScheduledTasks.Running[settings.TaskId].DeleteAsync();
+        var task = await TasksCommandHelper.ResolveTaskAsync(client, settings.TaskId, cancellationToken);
+        if (task is null)
+        {
+            AnsiConsole.MarkupLine("[red]Task not found.[/]");
+            return 1;
+        }
 
-        AnsiConsole.MarkupLine($"[green]Task '[white]{settings.TaskId}[/]' stopped.[/]");
+        await client.ScheduledTasks.Running[TasksCommandHelper.GetRouteIdentifier(task, settings.TaskId)].DeleteAsync();
+
+        AnsiConsole.MarkupLine($"[green]Task '[white]{Markup.Escape(task.Name ?? settings.TaskId)}[/]' stopped.[/]");
         return 0;
     }
 }

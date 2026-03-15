@@ -17,4 +17,15 @@ internal static class TasksCommandHelper
             string.Equals(candidate.Key, identifier, StringComparison.OrdinalIgnoreCase) ||
             string.Equals(candidate.Name, identifier, StringComparison.OrdinalIgnoreCase));
     }
+
+    internal static string GetRouteIdentifier(TaskInfo task, string fallbackIdentifier)
+    {
+        if (!string.IsNullOrWhiteSpace(task.Key))
+            return task.Key;
+
+        if (!string.IsNullOrWhiteSpace(task.Id))
+            return task.Id;
+
+        return fallbackIdentifier;
+    }
 }

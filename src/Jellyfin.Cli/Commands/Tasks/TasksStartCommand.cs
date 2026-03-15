@@ -11,7 +11,7 @@ namespace Jellyfin.Cli.Commands.Tasks;
 public sealed class TasksStartSettings : GlobalSettings
 {
     [CommandArgument(0, "<TASK_ID>")]
-    [Description("The ID of the scheduled task to start")]
+    [Description("The ID, key, or name of the scheduled task to start")]
     public string TaskId { get; set; } = string.Empty;
 
     public override ValidationResult Validate()
@@ -33,9 +33,16 @@ public sealed class TasksStartCommand : ApiCommand<TasksStartSettings>
     protected override async Task<int> ExecuteAsync(
         CommandContext context, TasksStartSettings settings, JellyfinApiClient client, CancellationToken cancellationToken)
     {
-        await client.ScheduledTasks.Running[settings.TaskId].PostAsync();
+        var task = await TasksCommandHelper.ResolveTaskAsync(client, settings.TaskId, cancellationToken);
+        if (task is null)
+        {
+            AnsiConsole.MarkupLine("[red]Task not found.[/]");
+            return 1;
+        }
 
-        AnsiConsole.MarkupLine($"[green]Task '[white]{settings.TaskId}[/]' started.[/]");
+        await client.ScheduledTasks.Running[TasksCommandHelper.GetRouteIdentifier(task, settings.TaskId)].PostAsync();
+
+        AnsiConsole.MarkupLine($"[green]Task '[white]{Markup.Escape(task.Name ?? settings.TaskId)}[/]' started.[/]");
         return 0;
     }
 }
