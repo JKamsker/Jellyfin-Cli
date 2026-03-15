@@ -20,11 +20,14 @@ internal static class TasksCommandHelper
 
     internal static string GetRouteIdentifier(TaskInfo task, string fallbackIdentifier)
     {
-        if (!string.IsNullOrWhiteSpace(task.Key))
-            return task.Key;
+        if (Guid.TryParse(task.Id, out var parsedId))
+            return parsedId.ToString("N");
 
         if (!string.IsNullOrWhiteSpace(task.Id))
             return task.Id;
+
+        if (!string.IsNullOrWhiteSpace(task.Key))
+            return task.Key;
 
         return fallbackIdentifier;
     }
