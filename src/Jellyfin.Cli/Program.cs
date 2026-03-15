@@ -1,6 +1,7 @@
 using Jellyfin.Cli.Commands.Auth;
 using Jellyfin.Cli.Commands.Auth.Quick;
 using Jellyfin.Cli.Commands.Backups;
+using Jellyfin.Cli.Commands.Browse;
 using Jellyfin.Cli.Commands.Collections;
 using Jellyfin.Cli.Commands.Devices;
 using Jellyfin.Cli.Commands.Items;
@@ -82,6 +83,9 @@ app.Configure(config =>
         items.AddCommand<ItemsSimilarCommand>("similar").WithDescription("Find similar items");
         items.AddCommand<ItemsSuggestionsCommand>("suggestions").WithDescription("Show suggested items for the current user");
         items.AddCommand<ItemsCountsCommand>("counts").WithDescription("Show library item counts");
+        items.AddCommand<ItemsPlaybackInfoCommand>("playback-info").WithDescription("Inspect playback media sources and streams");
+        items.AddCommand<ItemsAncestorsCommand>("ancestors").WithDescription("Show parent hierarchy for an item");
+        items.AddCommand<ItemsThemesCommand>("themes").WithDescription("List theme songs and videos for an item");
         items.AddBranch("images", images =>
         {
             images.SetDescription("Manage item artwork");
@@ -190,6 +194,30 @@ app.Configure(config =>
         library.AddCommand<LibraryMediaCommand>("media").WithDescription("Show media folders");
     });
 
+    config.AddBranch("genres", genres =>
+    {
+        genres.SetDescription("Browse library genres");
+        genres.AddCommand<GenresListCommand>("list").WithDescription("List known genres");
+    });
+
+    config.AddBranch("studios", studios =>
+    {
+        studios.SetDescription("Browse library studios");
+        studios.AddCommand<StudiosListCommand>("list").WithDescription("List known studios");
+    });
+
+    config.AddBranch("artists", artists =>
+    {
+        artists.SetDescription("Browse music artists or album artists");
+        artists.AddCommand<ArtistsListCommand>("list").WithDescription("List artists or album artists");
+    });
+
+    config.AddBranch("persons", persons =>
+    {
+        persons.SetDescription("Browse actors, directors, and other people");
+        persons.AddCommand<PersonsListCommand>("list").WithDescription("List people with optional person-type filters");
+    });
+
     config.AddBranch("server", server =>
     {
         server.SetDescription("Health, logs, config, restart, and shutdown");
@@ -199,6 +227,21 @@ app.Configure(config =>
         server.AddCommand<ServerEndpointCommand>("endpoint").WithDescription("Show request endpoint information [[admin]]");
         server.AddCommand<ServerActivityCommand>("activity").WithDescription("Show activity log entries [[admin]]");
         server.AddCommand<ServerLogsCommand>("logs").WithDescription("List server logs [[admin]]");
+        server.AddCommand<ServerBitrateTestCommand>("bitrate-test").WithDescription("Measure download throughput between the CLI and server");
+        server.AddBranch("localization", localization =>
+        {
+            localization.SetDescription("List reference localization data");
+            localization.AddCommand<ServerLocalizationCulturesCommand>("cultures").WithDescription("List supported cultures");
+            localization.AddCommand<ServerLocalizationCountriesCommand>("countries").WithDescription("List known countries");
+            localization.AddCommand<ServerLocalizationRatingsCommand>("ratings").WithDescription("List known parental ratings");
+        });
+        server.AddBranch("environment", environment =>
+        {
+            environment.SetDescription("Inspect the server filesystem [[admin]]");
+            environment.AddCommand<ServerEnvironmentDrivesCommand>("drives").WithDescription("List available drives");
+            environment.AddCommand<ServerEnvironmentLsCommand>("ls").WithDescription("List directory contents");
+            environment.AddCommand<ServerEnvironmentValidateCommand>("validate").WithDescription("Validate that a path exists and is accessible");
+        });
         server.AddBranch("log", log =>
         {
             log.SetDescription("Read individual server logs [[admin]]");

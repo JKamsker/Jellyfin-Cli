@@ -40,6 +40,68 @@ public static class OutputHelper
         return AnsiConsole.Confirm(prompt, defaultValue);
     }
 
+    public static string FormatBytes(long? bytes)
+    {
+        if (bytes is null or < 0)
+            return string.Empty;
+
+        var value = (double)bytes.Value;
+        var units = new[] { "B", "KB", "MB", "GB", "TB" };
+        var unitIndex = 0;
+
+        while (value >= 1024 && unitIndex < units.Length - 1)
+        {
+            value /= 1024;
+            unitIndex++;
+        }
+
+        return unitIndex == 0
+            ? $"{value:0} {units[unitIndex]}"
+            : $"{value:0.##} {units[unitIndex]}";
+    }
+
+    public static string FormatBitrate(long? bitsPerSecond)
+    {
+        if (bitsPerSecond is null or < 0)
+            return string.Empty;
+
+        return FormatBitrateValue(bitsPerSecond.Value);
+    }
+
+    public static string FormatBitrate(double bitsPerSecond)
+    {
+        return FormatBitrateValue(bitsPerSecond);
+    }
+
+    private static string FormatBitrateValue(double bitsPerSecond)
+    {
+        if (bitsPerSecond < 0)
+            return string.Empty;
+
+        if (bitsPerSecond >= 1_000_000)
+            return $"{bitsPerSecond / 1_000_000:0.##} Mbps";
+
+        if (bitsPerSecond >= 1_000)
+            return $"{bitsPerSecond / 1_000:0.##} Kbps";
+
+        return $"{bitsPerSecond:0} bps";
+    }
+
+    public static string FormatDuration(TimeSpan duration)
+    {
+        return duration.TotalHours >= 1
+            ? $"{(int)duration.TotalHours:D2}:{duration.Minutes:D2}:{duration.Seconds:D2}"
+            : $"{duration.Minutes:D2}:{duration.Seconds:D2}";
+    }
+
+    public static string FormatTicks(long? ticks)
+    {
+        if (ticks is null or < 0)
+            return string.Empty;
+
+        return FormatDuration(TimeSpan.FromTicks(ticks.Value));
+    }
+
     /// <summary>
     /// Ensures AnsiConsole.Profile.Width is at least <see cref="MinConsoleWidth"/>
     /// so that tables don't collapse to a single character when the terminal width
