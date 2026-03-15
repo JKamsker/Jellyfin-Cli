@@ -67,6 +67,7 @@ app.Configure(config =>
         items.AddCommand<ItemsListCommand>("list").WithDescription("Query items with filters");
         items.AddCommand<ItemsGetCommand>("get").WithDescription("Show one item by id");
         items.AddCommand<ItemsLatestCommand>("latest").WithDescription("Inspect Jellyfin's latest-items shelf");
+        items.AddCommand<ItemsExplainLatestCommand>("explain-latest").WithDescription("Explain why an item is or is not visible in latest");
         items.AddCommand<ItemsSearchCommand>("search").WithDescription("Search names and titles");
         items.AddCommand<ItemsDatesCommand>("dates").WithDescription("Show date fields used for latest-items diagnostics");
         items.AddCommand<ItemsTreeCommand>("tree").WithDescription("Show a recursive item tree for diagnostics");
@@ -82,6 +83,11 @@ app.Configure(config =>
             images.AddCommand<ImagesListCommand>("list").WithDescription("List known images for an item");
             images.AddCommand<ImagesSetCommand>("set").WithDescription("Upload an image for an item");
             images.AddCommand<ImagesDeleteCommand>("delete").WithDescription("Delete an image");
+        });
+        items.AddBranch("nfo", nfo =>
+        {
+            nfo.SetDescription("Inspect local NFO sidecar metadata");
+            nfo.AddCommand<ItemsNfoInspectCommand>("inspect").WithDescription("Inspect derived local NFO metadata for an item");
         });
     });
 
