@@ -152,6 +152,11 @@ app.Configure(config =>
         server.AddCommand<ServerInfoCommand>("info").WithDescription("Show public or authenticated server info");
         server.AddCommand<ServerActivityCommand>("activity").WithDescription("Show activity log entries [[admin]]");
         server.AddCommand<ServerLogsCommand>("logs").WithDescription("List server logs [[admin]]");
+        server.AddBranch("config", serverConfig =>
+        {
+            serverConfig.SetDescription("Inspect and update server configuration [[admin]]");
+            serverConfig.AddCommand<ServerConfigMetadataCommand>("metadata").WithDescription("Show or update metadata configuration");
+        });
         server.AddCommand<ServerRestartCommand>("restart").WithDescription("Restart Jellyfin [[admin]]");
         server.AddCommand<ServerShutdownCommand>("shutdown").WithDescription("Shut down Jellyfin [[admin]]");
     });
