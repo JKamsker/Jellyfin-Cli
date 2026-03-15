@@ -163,7 +163,23 @@ app.Configure(config =>
     {
         library.SetDescription("Scan libraries and manage virtual folders [[admin]]");
         library.AddCommand<LibraryScanCommand>("scan").WithDescription("Start a full library refresh");
-        library.AddCommand<LibraryFoldersListCommand>("folders").WithDescription("List virtual folders");
+        library.AddBranch("folders", folders =>
+        {
+            folders.SetDescription("List, create, rename, or remove virtual folders [[admin]]");
+            folders.SetDefaultCommand<LibraryFoldersListCommand>();
+            folders.AddCommand<LibraryFoldersListCommand>("list").WithDescription("List virtual folders");
+            folders.AddCommand<LibraryFoldersAddCommand>("add").WithDescription("Create a virtual folder");
+            folders.AddCommand<LibraryFoldersRenameCommand>("rename").WithDescription("Rename a virtual folder");
+            folders.AddCommand<LibraryFoldersRemoveCommand>("remove").WithDescription("Remove a virtual folder");
+        });
+        library.AddBranch("paths", paths =>
+        {
+            paths.SetDescription("Manage media paths inside a virtual folder [[admin]]");
+            paths.AddCommand<LibraryPathsAddCommand>("add").WithDescription("Add a media path to a library");
+            paths.AddCommand<LibraryPathsUpdateCommand>("update").WithDescription("Update a media path entry");
+            paths.AddCommand<LibraryPathsRemoveCommand>("remove").WithDescription("Remove a media path from a library");
+        });
+        library.AddCommand<LibraryOptionsCommand>("options").WithDescription("Show or update library options for one virtual folder");
         library.AddCommand<LibraryMediaCommand>("media").WithDescription("Show media folders");
     });
 
