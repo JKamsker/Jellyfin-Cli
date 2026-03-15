@@ -33,7 +33,7 @@ public sealed class TasksGetCommand : ApiCommand<TasksGetSettings>
     protected override async Task<int> ExecuteAsync(
         CommandContext context, TasksGetSettings settings, JellyfinApiClient client, CancellationToken cancellationToken)
     {
-        var task = await client.ScheduledTasks[settings.TaskId].GetAsync();
+        var task = await TasksCommandHelper.ResolveTaskAsync(client, settings.TaskId, cancellationToken);
 
         if (task is null)
         {
@@ -49,6 +49,7 @@ public sealed class TasksGetCommand : ApiCommand<TasksGetSettings>
 
         var table = OutputHelper.CreateTable("Field", "Value");
         table.AddRow("Id", task.Id ?? "(unknown)");
+        table.AddRow("Key", task.Key ?? "(unknown)");
         table.AddRow("Name", task.Name ?? "(unknown)");
         table.AddRow("Description", task.Description ?? "(none)");
         table.AddRow("Category", task.Category ?? "(unknown)");

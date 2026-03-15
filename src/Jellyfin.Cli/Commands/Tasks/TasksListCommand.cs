@@ -29,6 +29,7 @@ public sealed class TasksListCommand : ApiCommand<GlobalSettings>
             OutputHelper.WriteJson(tasks.Select(t => new
             {
                 id = t.Id,
+                key = t.Key,
                 name = t.Name,
                 state = t.State?.ToString(),
                 category = t.Category,
@@ -37,11 +38,12 @@ public sealed class TasksListCommand : ApiCommand<GlobalSettings>
             return 0;
         }
 
-        var table = OutputHelper.CreateTable("Id", "Name", "State", "Category", "LastExecutionResult");
+        var table = OutputHelper.CreateTable("Id", "Key", "Name", "State", "Category", "LastExecutionResult");
         foreach (var task in tasks)
         {
             table.AddRow(
                 task.Id ?? "(unknown)",
+                task.Key ?? "(unknown)",
                 task.Name ?? "(unknown)",
                 task.State?.ToString() ?? "(unknown)",
                 task.Category ?? "(unknown)",

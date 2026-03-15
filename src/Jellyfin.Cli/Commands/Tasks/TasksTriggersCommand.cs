@@ -206,11 +206,7 @@ public sealed class TasksTriggersCommand : ApiCommand<TasksTriggersSettings>
         CommandContext context, TasksTriggersSettings settings, JellyfinApiClient client, CancellationToken cancellationToken)
     {
         var taskIdentifier = settings.ResolveTaskId();
-        var tasks = await client.ScheduledTasks.GetAsync(cancellationToken: cancellationToken) ?? [];
-        var task = tasks.FirstOrDefault(candidate =>
-            string.Equals(candidate.Id, taskIdentifier, StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(candidate.Key, taskIdentifier, StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(candidate.Name, taskIdentifier, StringComparison.OrdinalIgnoreCase));
+        var task = await TasksCommandHelper.ResolveTaskAsync(client, taskIdentifier, cancellationToken);
 
         if (task is null)
         {
