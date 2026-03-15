@@ -1,6 +1,7 @@
 using System.ComponentModel;
 
 using Jellyfin.Cli.Api.Generated;
+using Jellyfin.Cli.Api.Generated.Models;
 using Jellyfin.Cli.Common;
 
 using Spectre.Console;
@@ -50,10 +51,15 @@ public sealed class ItemsSearchCommand : ApiCommand<ItemsSearchSettings>
             q.EnableTotalRecordCount = true;
 
             if (!string.IsNullOrEmpty(settings.MediaType))
-                q.MediaTypes = [settings.MediaType];
+                q.MediaTypesAsMediaType = [ParseMediaType(settings.MediaType)];
 
             if (!string.IsNullOrEmpty(settings.ItemType))
-                q.IncludeItemTypes = settings.ItemType.Split(',', StringSplitOptions.TrimEntries);
+            {
+                q.IncludeItemTypesAsBaseItemKind = settings.ItemType
+                    .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                    .Select(ParseItemType)
+                    .ToArray();
+            }
         });
 
         var items = result?.Items;
@@ -104,5 +110,19 @@ public sealed class ItemsSearchCommand : ApiCommand<ItemsSearchSettings>
         return ts.TotalHours >= 1
             ? $"{(int)ts.TotalHours}h {ts.Minutes:D2}m"
             : $"{ts.Minutes}m {ts.Seconds:D2}s";
+    }
+
+    private static MediaType ParseMediaType(string value)
+    {
+        return Enum.TryParse<MediaType>(value, true, out var parsed)
+            ? parsed
+            : throw new InvalidOperationException($"Unknown media type '{value}'.");
+    }
+
+    private static BaseItemKind ParseItemType(string value)
+    {
+        return Enum.TryParse<BaseItemKind>(value, true, out var parsed)
+            ? parsed
+            : throw new InvalidOperationException($"Unknown item type '{value}'.");
     }
 }

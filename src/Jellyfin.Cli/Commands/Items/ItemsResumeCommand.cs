@@ -24,7 +24,7 @@ public sealed class ItemsResumeCommand : ApiCommand<GlobalSettings>
             q.Recursive = true;
             q.Limit = settings.Limit ?? 25;
             q.StartIndex = settings.Start;
-            q.SortBy = ["DatePlayed"];
+            q.SortByAsItemSortBy = [ItemSortBy.DatePlayed];
             q.SortOrderAsSortOrder = [SortOrder.Descending];
             q.EnableTotalRecordCount = true;
         });

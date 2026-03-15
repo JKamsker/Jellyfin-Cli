@@ -38,9 +38,11 @@ public sealed class ServerInfoCommand : ApiCommand<ServerInfoSettings>
         table.AddRow("ServerName", info.ServerName ?? "");
         table.AddRow("Version", info.Version ?? "");
         table.AddRow("ProductName", info.ProductName ?? "");
+#pragma warning disable CS0618
         table.AddRow("OperatingSystem", info.OperatingSystem ?? "");
         table.AddRow("OperatingSystemDisplayName", info.OperatingSystemDisplayName ?? "");
         table.AddRow("Architecture", info.SystemArchitecture ?? "");
+#pragma warning restore CS0618
         table.AddRow("Id", info.Id ?? "");
         table.AddRow("LocalAddress", info.LocalAddress ?? "");
         table.AddRow("HasPendingRestart", info.HasPendingRestart?.ToString() ?? "");

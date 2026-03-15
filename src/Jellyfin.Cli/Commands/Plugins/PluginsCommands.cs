@@ -96,9 +96,12 @@ public sealed class PluginsEnableCommand : ApiCommand<PluginVersionSettings>
     protected override async Task<int> ExecuteAsync(
         CommandContext context, PluginVersionSettings settings, JellyfinApiClient client, CancellationToken cancellationToken)
     {
-        var pluginId = Guid.Parse(settings.PluginId);
-
-        await client.Plugins[pluginId][settings.PluginVersion].Enable.PostAsync();
+        using var httpClient = CreateHttpClient();
+        using var response = await httpClient.PostAsync(
+            $"Plugins/{Uri.EscapeDataString(settings.PluginId)}/{Uri.EscapeDataString(settings.PluginVersion)}/Enable",
+            content: null,
+            cancellationToken);
+        response.EnsureSuccessStatusCode();
 
         AnsiConsole.MarkupLine(
             $"[green]Plugin [white]{settings.PluginId}[/] v{settings.PluginVersion} enabled.[/]");
@@ -120,9 +123,12 @@ public sealed class PluginsDisableCommand : ApiCommand<PluginVersionSettings>
     protected override async Task<int> ExecuteAsync(
         CommandContext context, PluginVersionSettings settings, JellyfinApiClient client, CancellationToken cancellationToken)
     {
-        var pluginId = Guid.Parse(settings.PluginId);
-
-        await client.Plugins[pluginId][settings.PluginVersion].Disable.PostAsync();
+        using var httpClient = CreateHttpClient();
+        using var response = await httpClient.PostAsync(
+            $"Plugins/{Uri.EscapeDataString(settings.PluginId)}/{Uri.EscapeDataString(settings.PluginVersion)}/Disable",
+            content: null,
+            cancellationToken);
+        response.EnsureSuccessStatusCode();
 
         AnsiConsole.MarkupLine(
             $"[green]Plugin [white]{settings.PluginId}[/] v{settings.PluginVersion} disabled.[/]");
@@ -144,8 +150,6 @@ public sealed class PluginsUninstallCommand : ApiCommand<PluginVersionSettings>
     protected override async Task<int> ExecuteAsync(
         CommandContext context, PluginVersionSettings settings, JellyfinApiClient client, CancellationToken cancellationToken)
     {
-        var pluginId = Guid.Parse(settings.PluginId);
-
         if (!settings.Yes)
         {
             if (!OutputHelper.Confirm(
@@ -156,7 +160,11 @@ public sealed class PluginsUninstallCommand : ApiCommand<PluginVersionSettings>
             }
         }
 
-        await client.Plugins[pluginId][settings.PluginVersion].DeleteAsync();
+        using var httpClient = CreateHttpClient();
+        using var response = await httpClient.DeleteAsync(
+            $"Plugins/{Uri.EscapeDataString(settings.PluginId)}/{Uri.EscapeDataString(settings.PluginVersion)}",
+            cancellationToken);
+        response.EnsureSuccessStatusCode();
 
         AnsiConsole.MarkupLine(
             $"[green]Plugin [white]{settings.PluginId}[/] v{settings.PluginVersion} uninstalled.[/]");

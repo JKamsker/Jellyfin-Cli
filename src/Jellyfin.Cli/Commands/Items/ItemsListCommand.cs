@@ -66,19 +66,29 @@ public sealed class ItemsListCommand : ApiCommand<ItemsListSettings>
                 q.ParentId = parentId;
 
             if (!string.IsNullOrEmpty(settings.Sort))
-                q.SortBy = [settings.Sort];
+                q.SortByAsItemSortBy = [ParseSortField(settings.Sort)];
 
             if (settings.Desc)
                 q.SortOrderAsSortOrder = [SortOrder.Descending];
 
             if (!string.IsNullOrEmpty(settings.MediaType))
-                q.MediaTypes = [settings.MediaType];
+                q.MediaTypesAsMediaType = [ParseMediaType(settings.MediaType)];
 
             if (!string.IsNullOrEmpty(settings.Field))
-                q.Fields = settings.Field.Split(',', StringSplitOptions.TrimEntries);
+            {
+                q.FieldsAsItemFields = settings.Field
+                    .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                    .Select(ParseField)
+                    .ToArray();
+            }
 
             if (!string.IsNullOrEmpty(settings.ItemType))
-                q.IncludeItemTypes = settings.ItemType.Split(',', StringSplitOptions.TrimEntries);
+            {
+                q.IncludeItemTypesAsBaseItemKind = settings.ItemType
+                    .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                    .Select(ParseItemType)
+                    .ToArray();
+            }
 
             q.EnableTotalRecordCount = true;
         });
@@ -132,5 +142,33 @@ public sealed class ItemsListCommand : ApiCommand<ItemsListSettings>
         return ts.TotalHours >= 1
             ? $"{(int)ts.TotalHours}h {ts.Minutes:D2}m"
             : $"{ts.Minutes}m {ts.Seconds:D2}s";
+    }
+
+    private static ItemSortBy ParseSortField(string value)
+    {
+        return Enum.TryParse<ItemSortBy>(value, true, out var parsed)
+            ? parsed
+            : throw new InvalidOperationException($"Unknown sort field '{value}'.");
+    }
+
+    private static MediaType ParseMediaType(string value)
+    {
+        return Enum.TryParse<MediaType>(value, true, out var parsed)
+            ? parsed
+            : throw new InvalidOperationException($"Unknown media type '{value}'.");
+    }
+
+    private static ItemFields ParseField(string value)
+    {
+        return Enum.TryParse<ItemFields>(value, true, out var parsed)
+            ? parsed
+            : throw new InvalidOperationException($"Unknown field '{value}'.");
+    }
+
+    private static BaseItemKind ParseItemType(string value)
+    {
+        return Enum.TryParse<BaseItemKind>(value, true, out var parsed)
+            ? parsed
+            : throw new InvalidOperationException($"Unknown item type '{value}'.");
     }
 }

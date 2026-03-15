@@ -1,6 +1,7 @@
 using System.ComponentModel;
 
 using Jellyfin.Cli.Api.Generated;
+using Jellyfin.Cli.Api.Generated.Models;
 using Jellyfin.Cli.Common;
 
 using Spectre.Console;
@@ -66,7 +67,12 @@ public sealed class ItemsLatestCommand : ApiCommand<ItemsLatestSettings>
                 q.ParentId = parentId;
 
             if (!string.IsNullOrWhiteSpace(settings.ItemType))
-                q.IncludeItemTypes = settings.ItemType.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+            {
+                q.IncludeItemTypesAsBaseItemKind = settings.ItemType
+                    .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                    .Select(ParseItemType)
+                    .ToArray();
+            }
 
             if (settings.Played)
                 q.IsPlayed = true;
@@ -126,5 +132,12 @@ public sealed class ItemsLatestCommand : ApiCommand<ItemsLatestSettings>
         OutputHelper.WriteTable(table);
         AnsiConsole.MarkupLine($"[dim]Showing {projected.Count} latest items (grouped: {!settings.Ungrouped}).[/]");
         return 0;
+    }
+
+    private static BaseItemKind ParseItemType(string value)
+    {
+        return Enum.TryParse<BaseItemKind>(value, true, out var parsed)
+            ? parsed
+            : throw new InvalidOperationException($"Unknown item type '{value}'.");
     }
 }
