@@ -8,6 +8,33 @@ jf server ping
 
 # Show server version, architecture, and system info
 jf server info
+
+# Show endpoint and storage information
+jf server endpoint
+jf server storage
+```
+
+## Configuration and environment
+
+```bash
+# Dump the full server configuration
+jf server config get
+
+# Read a named configuration section
+jf server config get MetadataOptions
+
+# View branding settings such as disclaimer text and custom CSS
+jf server config branding
+
+# Inspect reference localization data
+jf server localization cultures
+jf server localization countries
+jf server localization ratings
+
+# Inspect the server filesystem
+jf server environment drives
+jf server environment ls /srv/media
+jf server environment validate /srv/media
 ```
 
 ## Library management
@@ -37,6 +64,10 @@ jf tasks start <TASK_ID>
 
 # Stop a running task
 jf tasks stop <TASK_ID>
+
+# Inspect or replace task triggers
+jf tasks triggers <TASK_ID>
+jf tasks triggers set <TASK_ID> --daily 03:00
 ```
 
 ## User management
@@ -77,6 +108,9 @@ jf server activity --json --limit 5
 # List available log files
 jf server logs
 
+# Read one log file
+jf server log get jellyfin.log
+
 # As JSON
 jf server logs --json
 ```
@@ -86,6 +120,10 @@ jf server logs --json
 ```bash
 # List installed plugins
 jf plugins list
+
+# Read or update plugin configuration
+jf plugins config get <PLUGIN_ID>
+jf plugins config set <PLUGIN_ID> --file plugin-config.json
 
 # Disable a plugin
 jf plugins disable --plugin-id <PLUGIN_ID> --version <VERSION>
@@ -108,6 +146,33 @@ jf devices get --id <DEVICE_ID>
 
 # Remove a device (prompts for confirmation)
 jf devices delete --id <DEVICE_ID>
+
+# View or update the device display name
+jf devices options get <DEVICE_ID>
+jf devices options set <DEVICE_ID> --name "Living Room TV"
+```
+
+## Packages
+
+```bash
+# Browse packages from configured repositories
+jf packages list
+jf packages get Jellyfin.Plugin.SubtitleExtract
+
+# Install a specific package version
+jf packages install Jellyfin.Plugin.SubtitleExtract --version 1.2.3.0
+
+# Show or replace package repositories
+jf packages repos list
+jf packages repos set --file repositories.json
+```
+
+## Network diagnostics
+
+```bash
+# Estimate throughput between the CLI and the server
+jf server bitrate-test
+jf server bitrate-test --size 1048576
 ```
 
 ## Server restart and shutdown (admin)
@@ -128,6 +193,9 @@ jf server restart --yes
 ```bash
 # List existing backups
 jf backups list
+
+# Inspect the manifest stored in an archive
+jf backups inspect /path/to/backup.zip
 
 # Create a backup
 jf backups create --metadata --database

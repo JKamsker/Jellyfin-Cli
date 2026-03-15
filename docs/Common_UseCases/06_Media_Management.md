@@ -53,6 +53,18 @@ jf items refresh <ITEM_ID> --mode full --replace-images --replace-metadata
 jf items refresh <ITEM_ID> --regenerate-trickplay
 ```
 
+## Delete an item
+
+This removes the item from the Jellyfin library and the underlying filesystem, so the command requires confirmation or `--yes`.
+
+```bash
+# Interactive confirmation
+jf items delete <ITEM_ID>
+
+# Non-interactive
+jf items delete <ITEM_ID> --yes
+```
+
 ## Manage item images
 
 ```bash
@@ -70,6 +82,52 @@ jf items images delete <ITEM_ID> Primary
 ```
 
 Supported image types: `Primary`, `Backdrop`, `Logo`, `Thumb`, `Banner`, `Art`, `Disc`.
+
+Browse remote artwork before downloading it:
+
+```bash
+# List remote image providers
+jf items remote-images providers <ITEM_ID>
+
+# List candidate images
+jf items remote-images list <ITEM_ID>
+
+# Download a remote image
+jf items remote-images download <ITEM_ID> --url <IMAGE_URL> --type Primary
+```
+
+## Manage subtitles
+
+```bash
+# Search subtitle providers by language
+jf items subtitles search <ITEM_ID> en
+
+# Download a remote subtitle
+jf items subtitles download <ITEM_ID> <SUBTITLE_ID>
+
+# Upload an external subtitle file
+jf items subtitles upload <ITEM_ID> /path/to/subtitle.srt --language en
+
+# Delete an external subtitle by index
+jf items subtitles delete <ITEM_ID> 0
+```
+
+## Manage lyrics
+
+```bash
+# Read current lyrics for an audio item
+jf items lyrics get <ITEM_ID>
+
+# Search remote lyric providers
+jf items lyrics search <ITEM_ID>
+
+# Download remote lyrics
+jf items lyrics download <ITEM_ID> <LYRIC_ID>
+
+# Upload or delete external lyrics
+jf items lyrics upload <ITEM_ID> /path/to/song.lrc
+jf items lyrics delete <ITEM_ID>
+```
 
 ## Mark/unmark favorites
 
@@ -114,4 +172,31 @@ jf items download <ITEM_ID>
 
 # Download to a specific path
 jf items download <ITEM_ID> --output /path/to/file.mkv
+```
+
+## Find similar content and suggestions
+
+```bash
+# Find items similar to a specific item
+jf items similar <ITEM_ID>
+
+# Get suggested items for the current user
+jf items suggestions
+jf items suggestions --type Movie
+
+# Show library-wide item counts
+jf items counts
+```
+
+## Inspect playback and hierarchy
+
+```bash
+# Inspect media sources, codecs, and streams
+jf items playback-info <ITEM_ID>
+
+# Show the item's parent chain
+jf items ancestors <ITEM_ID>
+
+# List theme songs and theme videos
+jf items themes <ITEM_ID>
 ```

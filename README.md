@@ -28,27 +28,33 @@ jf server info
 
 # Browse your library
 jf items list
-jf items search --query "Breaking Bad"
+jf items search "Breaking Bad"
+
+# Inspect server state
+jf server logs
+jf items counts
 ```
 
 ## Commands
 
 | Group | Commands |
 |-------|----------|
-| `auth` | `login`, `logout`, `status` |
-| `server` | `info`, `ping`, `logs`, `activity`, `restart`, `shutdown` |
-| `items` | `list`, `get`, `search`, `remote-search`, `latest`, `favorite`, `unfavorite`, `delete`, `resume` |
-| `users` | `list`, `get`, `create`, `delete`, `password` |
-| `sessions` | `list`, `state` |
-| `library` | `refresh`, `scan` |
-| `playlists` | `list`, `get`, `create`, `delete`, `add`, `remove` |
-| `collections` | `list`, `create`, `delete`, `add`, `remove` |
-| `devices` | `list`, `get`, `delete` |
-| `tasks` | `list`, `get`, `run` |
-| `plugins` | `list`, `enable`, `disable`, `uninstall` |
-| `backups` | `list`, `create`, `restore` |
+| `auth` | `login`, `whoami`, `logout`, `users`, `quick`, `keys` |
+| `server` | `ping`, `info`, `storage`, `endpoint`, `activity`, `logs`, `log get`, `bitrate-test`, `localization`, `environment`, `config`, `restart`, `shutdown` |
+| `items` | `list`, `get`, `latest`, `explain-latest`, `search`, `dates`, `tree`, `resume`, `favorite`, `refresh`, `update`, `delete`, `remote-search`, `download`, `similar`, `suggestions`, `counts`, `playback-info`, `ancestors`, `themes`, `images`, `remote-images`, `subtitles`, `lyrics`, `nfo` |
+| `users` | `list`, `get`, `create`, `update`, `delete`, `password`, `policy` |
+| `sessions` | `list`, `play`, `state`, `message`, `command` |
+| `library` | `scan`, `folders`, `paths`, `options`, `media` |
+| `playlists` | `create`, `get`, `update`, `items` |
+| `collections` | `create`, `add`, `remove` |
+| `devices` | `list`, `get`, `delete`, `options` |
+| `tasks` | `list`, `get`, `triggers`, `start`, `stop` |
+| `plugins` | `list`, `enable`, `disable`, `uninstall`, `config` |
+| `packages` | `list`, `get`, `install`, `cancel`, `repos` |
+| `backups` | `list`, `inspect`, `create`, `restore` |
+| `genres` / `studios` / `artists` / `persons` | `list` |
 | `livetv` | `channels`, `recordings`, `timers` |
-| `syncplay` | `list`, `new`, `join`, `leave` |
+| `syncplay` | `list`, `create`, `join`, `leave` |
 | `raw` | `get`, `post`, `put`, `delete` |
 
 ## Global Options
@@ -86,6 +92,31 @@ jf items list --parent <LIBRARY_ID> --recursive --search "dragon"
 
 # Output as JSON for scripting
 jf items list --parent <LIBRARY_ID> --type Movie --json
+```
+
+### Admin workflows
+
+```bash
+# Inspect and read server logs
+jf server logs
+jf server log get jellyfin.log
+
+# Browse packages and installed plugin configuration
+jf packages list
+jf plugins config get <PLUGIN_ID>
+
+# Manage library structure
+jf library folders list
+jf library paths add "Movies" /srv/media/more-movies
+
+# Explore item relationships and diagnostics
+jf items similar <ITEM_ID>
+jf items playback-info <ITEM_ID>
+jf items ancestors <ITEM_ID>
+
+# Work with scheduled task triggers
+jf tasks triggers <TASK_ID>
+jf tasks triggers set <TASK_ID> --interval 12h
 ```
 
 ### More use cases

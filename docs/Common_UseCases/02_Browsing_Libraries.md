@@ -106,6 +106,60 @@ Shows the underlying filesystem paths for each library:
 jf library folders
 ```
 
+Create, rename, or remove folders:
+
+```bash
+# Create a new movie library
+jf library folders add "Movies" --type movies --path /srv/media/movies
+
+# Rename an existing virtual folder
+jf library folders rename "Movies" "Films"
+
+# Remove a virtual folder
+jf library folders remove "Films"
+```
+
+Manage physical media paths within a folder:
+
+```bash
+# Add another path to a library
+jf library paths add "Movies" /srv/media/more-movies
+
+# Replace the stored path entry with a new value
+jf library paths update "Movies" /srv/media/movies-archive
+
+# Remove a path from a library
+jf library paths remove "Movies" /srv/media/movies-archive
+```
+
+Inspect or update library options:
+
+```bash
+# Show current options
+jf library options "Movies"
+
+# Update options from a JSON file
+jf library options "Movies" --file movies-options.json
+```
+
+## Browse reference catalogs
+
+These commands are useful when you want to drive scripts or filters from the same catalog data Jellyfin uses internally.
+
+```bash
+# Browse genres
+jf genres list
+
+# Browse studios
+jf studios list
+
+# Browse artists / album artists
+jf artists list
+
+# Browse people, optionally filtered by role
+jf persons list --type Actor
+```
+
 ## Request extra fields
 
 ```bash
