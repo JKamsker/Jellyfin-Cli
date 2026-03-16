@@ -6,12 +6,16 @@ namespace Jellyfin.Cli.Common;
 public class GlobalSettings : CommandSettings
 {
     [CommandOption("--server <URL>")]
-    [Description("Jellyfin base URL")]
+    [Description("Jellyfin server URL or hostname")]
     public string? Server { get; set; }
 
     [CommandOption("--profile <NAME>")]
-    [Description("Use a named profile for host and credentials")]
+    [Description("Profile name on the resolved host")]
     public string? Profile { get; set; }
+
+    [CommandOption("--config <PATH>")]
+    [Description("Path to config file (overrides default location)")]
+    public string? ConfigPath { get; set; }
 
     [CommandOption("--token <TOKEN>")]
     [Description("Access token")]

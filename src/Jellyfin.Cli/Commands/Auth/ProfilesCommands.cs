@@ -8,7 +8,7 @@ using Spectre.Console.Cli;
 namespace Jellyfin.Cli.Commands.Auth;
 
 // ---------------------------------------------------------------------------
-// auth profiles list
+// auth profiles list [--server <host>]
 // ---------------------------------------------------------------------------
 
 public sealed class ProfilesListCommand : AsyncCommand<GlobalSettings>
@@ -22,65 +22,141 @@ public sealed class ProfilesListCommand : AsyncCommand<GlobalSettings>
 
     public override Task<int> ExecuteAsync(CommandContext context, GlobalSettings settings, CancellationToken cancellationToken)
     {
-        var profiles = _credentialStore.GetProfiles();
-        var active = _credentialStore.GetActiveProfileName();
+        _credentialStore.ConfigPathOverride = settings.ConfigPath
+            ?? Environment.GetEnvironmentVariable("JF_CONFIG");
 
-        if (profiles.Count == 0)
+        var hosts = _credentialStore.GetHosts();
+        var defaultHostname = _credentialStore.GetDefaultHostname();
+
+        if (hosts.Count == 0)
         {
             AnsiConsole.MarkupLine("[yellow]No profiles configured. Run 'jf auth login' to create one.[/]");
             return Task.FromResult(0);
         }
 
+        // If --server is given, show only that host
+        IEnumerable<KeyValuePair<string, HostConfig>> filtered = hosts;
+        if (!string.IsNullOrEmpty(settings.Server))
+        {
+            var resolved = _credentialStore.ResolveHost(settings.Server);
+            if (resolved is null)
+            {
+                AnsiConsole.MarkupLine($"[red]Error:[/] Host '{Markup.Escape(settings.Server)}' not found.");
+                return Task.FromResult(1);
+            }
+            filtered = new[] { new KeyValuePair<string, HostConfig>(resolved.Value.Hostname, resolved.Value.Host) };
+        }
+
         if (settings.Json)
         {
-            OutputHelper.WriteJson(profiles.Select(p => new
+            OutputHelper.WriteJson(filtered.SelectMany(h => h.Value.Profiles.Select(p => new
             {
-                name = p.Key,
-                server = p.Value.Server,
-                user = p.Value.UserName,
+                host = h.Key,
+                baseUrl = h.Value.BaseUrl,
+                profile = p.Key,
+                username = p.Value.Username,
                 auth = DescribeAuth(p.Value),
-                active = p.Key == active,
-            }));
+                isDefaultHost = h.Key == defaultHostname,
+                isDefaultProfile = p.Key == h.Value.DefaultProfile,
+            })));
             return Task.FromResult(0);
         }
 
-        var table = OutputHelper.CreateTable("", "Name", "Server", "User", "Auth");
-        foreach (var (name, profile) in profiles)
+        foreach (var (hostname, host) in filtered)
         {
-            var marker = name == active ? "[green]*[/]" : "";
-            table.AddRow(
-                marker,
-                Markup.Escape(name),
-                Markup.Escape(profile.Server),
-                Markup.Escape(profile.UserName),
-                DescribeAuth(profile));
+            var hostLabel = hostname == defaultHostname ? $"{hostname} [dim](default host)[/]" : hostname;
+            AnsiConsole.MarkupLine($"[bold]{hostLabel}[/]");
+            AnsiConsole.MarkupLine($"  [dim]baseUrl:[/] {Markup.Escape(host.BaseUrl)}");
+
+            foreach (var (profileName, profile) in host.Profiles)
+            {
+                var isDefault = profileName == host.DefaultProfile;
+                var marker = isDefault ? "[green]*[/] " : "  ";
+                var defaultTag = isDefault ? " [dim](default)[/]" : "";
+                var user = !string.IsNullOrEmpty(profile.Username) ? $" [dim]--[/] {Markup.Escape(profile.Username)}" : "";
+                var auth = !string.IsNullOrEmpty(profile.ApiKey) ? " [dim]-- API key[/]" : "";
+                var urlOverride = !string.IsNullOrEmpty(profile.BaseUrl) ? $" [dim](baseUrl: {Markup.Escape(profile.BaseUrl)})[/]" : "";
+                AnsiConsole.MarkupLine($"  {marker}{Markup.Escape(profileName)}{defaultTag}{user}{auth}{urlOverride}");
+            }
+            AnsiConsole.WriteLine();
         }
-        OutputHelper.WriteTable(table);
 
         return Task.FromResult(0);
     }
 
-    private static string DescribeAuth(StoredCredentials creds)
+    private static string DescribeAuth(ProfileConfig p)
     {
-        var parts = new List<string>();
-        if (!string.IsNullOrEmpty(creds.Token))
-            parts.Add("token");
-        if (!string.IsNullOrEmpty(creds.ApiKey))
-            parts.Add("api-key");
-        if (!string.IsNullOrEmpty(creds.Password))
-            parts.Add("password");
-        return parts.Count > 0 ? string.Join(", ", parts) : "none";
+        if (!string.IsNullOrEmpty(p.Token)) return "token";
+        if (!string.IsNullOrEmpty(p.ApiKey)) return "api-key";
+        return "none";
     }
 }
 
 // ---------------------------------------------------------------------------
-// auth profiles use <name>
+// auth profiles show [--server <host>] [--profile <name>]
+// ---------------------------------------------------------------------------
+
+public sealed class ProfilesShowCommand : AsyncCommand<GlobalSettings>
+{
+    private readonly CredentialStore _credentialStore;
+
+    public ProfilesShowCommand(CredentialStore credentialStore)
+    {
+        _credentialStore = credentialStore;
+    }
+
+    public override Task<int> ExecuteAsync(CommandContext context, GlobalSettings settings, CancellationToken cancellationToken)
+    {
+        _credentialStore.ConfigPathOverride = settings.ConfigPath
+            ?? Environment.GetEnvironmentVariable("JF_CONFIG");
+
+        var resolved = _credentialStore.Resolve(
+            settings.Server ?? Environment.GetEnvironmentVariable("JF_SERVER"),
+            settings.Profile ?? Environment.GetEnvironmentVariable("JF_PROFILE"));
+
+        if (resolved is null)
+        {
+            AnsiConsole.MarkupLine("[red]Error:[/] Could not resolve a profile. Use --server and/or --profile.");
+            return Task.FromResult(1);
+        }
+
+        var auth = !string.IsNullOrEmpty(resolved.Token) ? "token"
+            : !string.IsNullOrEmpty(resolved.ApiKey) ? "api-key"
+            : "none";
+
+        if (settings.Json)
+        {
+            OutputHelper.WriteJson(new
+            {
+                host = resolved.Hostname,
+                profile = resolved.ProfileName,
+                baseUrl = resolved.BaseUrl,
+                username = resolved.Username,
+                auth,
+            });
+            return Task.FromResult(0);
+        }
+
+        var table = OutputHelper.CreateTable("Field", "Value");
+        table.AddRow("Host", resolved.Hostname);
+        table.AddRow("Profile", resolved.ProfileName);
+        table.AddRow("Base URL", resolved.BaseUrl);
+        table.AddRow("Username", resolved.Username ?? "");
+        table.AddRow("Auth", auth);
+        OutputHelper.WriteTable(table);
+
+        return Task.FromResult(0);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// auth profiles use <name> [--server <host>]
 // ---------------------------------------------------------------------------
 
 public sealed class ProfilesUseSettings : GlobalSettings
 {
     [CommandArgument(0, "<NAME>")]
-    [Description("Profile name to activate")]
+    [Description("Profile name to set as default")]
     public string Name { get; set; } = string.Empty;
 
     public override ValidationResult Validate()
@@ -102,108 +178,94 @@ public sealed class ProfilesUseCommand : AsyncCommand<ProfilesUseSettings>
 
     public override Task<int> ExecuteAsync(CommandContext context, ProfilesUseSettings settings, CancellationToken cancellationToken)
     {
-        var profiles = _credentialStore.GetProfiles();
-        if (!profiles.ContainsKey(settings.Name))
+        _credentialStore.ConfigPathOverride = settings.ConfigPath
+            ?? Environment.GetEnvironmentVariable("JF_CONFIG");
+
+        var hostEntry = _credentialStore.ResolveHost(settings.Server);
+        if (hostEntry is null)
         {
-            AnsiConsole.MarkupLine($"[red]Error:[/] Profile '{Markup.Escape(settings.Name)}' does not exist.");
-            if (profiles.Count > 0)
-                AnsiConsole.MarkupLine($"[dim]Available:[/] {string.Join(", ", profiles.Keys)}");
+            AnsiConsole.MarkupLine("[red]Error:[/] Could not resolve host. Use --server to specify.");
             return Task.FromResult(1);
         }
 
-        _credentialStore.SetActiveProfile(settings.Name);
-        var profile = profiles[settings.Name];
-        AnsiConsole.MarkupLine($"[green]Active profile set to '{Markup.Escape(settings.Name)}'.[/]");
-        AnsiConsole.MarkupLine($"[dim]Server:[/] {Markup.Escape(profile.Server)}");
-        if (!string.IsNullOrEmpty(profile.UserName))
-            AnsiConsole.MarkupLine($"[dim]User:[/] {Markup.Escape(profile.UserName)}");
+        var (hostname, host) = hostEntry.Value;
+
+        if (!host.Profiles.ContainsKey(settings.Name))
+        {
+            AnsiConsole.MarkupLine($"[red]Error:[/] Profile '{Markup.Escape(settings.Name)}' does not exist on host '{Markup.Escape(hostname)}'.");
+            if (host.Profiles.Count > 0)
+                AnsiConsole.MarkupLine($"[dim]Available:[/] {string.Join(", ", host.Profiles.Keys)}");
+            return Task.FromResult(1);
+        }
+
+        _credentialStore.SetDefaultProfile(hostname, settings.Name);
+        AnsiConsole.MarkupLine($"[green]Default profile for '{Markup.Escape(hostname)}' set to '{Markup.Escape(settings.Name)}'.[/]");
 
         return Task.FromResult(0);
     }
 }
 
 // ---------------------------------------------------------------------------
-// auth profiles show <name>
+// auth profiles rename <old> <new> [--server <host>]
 // ---------------------------------------------------------------------------
 
-public sealed class ProfilesShowSettings : GlobalSettings
+public sealed class ProfilesRenameSettings : GlobalSettings
 {
-    [CommandArgument(0, "<NAME>")]
-    [Description("Profile name to inspect")]
-    public string Name { get; set; } = string.Empty;
+    [CommandArgument(0, "<OLD>")]
+    [Description("Current profile name")]
+    public string OldName { get; set; } = string.Empty;
+
+    [CommandArgument(1, "<NEW>")]
+    [Description("New profile name")]
+    public string NewName { get; set; } = string.Empty;
 
     public override ValidationResult Validate()
     {
-        if (string.IsNullOrWhiteSpace(Name))
-            return ValidationResult.Error("Profile name is required.");
+        if (string.IsNullOrWhiteSpace(OldName))
+            return ValidationResult.Error("Current profile name is required.");
+        if (string.IsNullOrWhiteSpace(NewName))
+            return ValidationResult.Error("New profile name is required.");
         return ValidationResult.Success();
     }
 }
 
-public sealed class ProfilesShowCommand : AsyncCommand<ProfilesShowSettings>
+public sealed class ProfilesRenameCommand : AsyncCommand<ProfilesRenameSettings>
 {
     private readonly CredentialStore _credentialStore;
 
-    public ProfilesShowCommand(CredentialStore credentialStore)
+    public ProfilesRenameCommand(CredentialStore credentialStore)
     {
         _credentialStore = credentialStore;
     }
 
-    public override Task<int> ExecuteAsync(CommandContext context, ProfilesShowSettings settings, CancellationToken cancellationToken)
+    public override Task<int> ExecuteAsync(CommandContext context, ProfilesRenameSettings settings, CancellationToken cancellationToken)
     {
-        var profile = _credentialStore.LoadProfile(settings.Name);
-        if (profile is null)
+        _credentialStore.ConfigPathOverride = settings.ConfigPath
+            ?? Environment.GetEnvironmentVariable("JF_CONFIG");
+
+        var hostEntry = _credentialStore.ResolveHost(settings.Server);
+        if (hostEntry is null)
         {
-            AnsiConsole.MarkupLine($"[red]Error:[/] Profile '{Markup.Escape(settings.Name)}' does not exist.");
+            AnsiConsole.MarkupLine("[red]Error:[/] Could not resolve host. Use --server to specify.");
             return Task.FromResult(1);
         }
 
-        var active = _credentialStore.GetActiveProfileName();
-        var isActive = settings.Name == active;
-
-        if (settings.Json)
+        try
         {
-            OutputHelper.WriteJson(new
-            {
-                name = settings.Name,
-                server = profile.Server,
-                user = profile.UserName,
-                userId = profile.UserId,
-                hasToken = !string.IsNullOrEmpty(profile.Token),
-                hasApiKey = !string.IsNullOrEmpty(profile.ApiKey),
-                hasPassword = !string.IsNullOrEmpty(profile.Password),
-                active = isActive,
-            });
+            _credentialStore.RenameProfile(hostEntry.Value.Hostname, settings.OldName, settings.NewName);
+            AnsiConsole.MarkupLine($"[green]Renamed profile '{Markup.Escape(settings.OldName)}' to '{Markup.Escape(settings.NewName)}' on host '{Markup.Escape(hostEntry.Value.Hostname)}'.[/]");
             return Task.FromResult(0);
         }
-
-        var table = OutputHelper.CreateTable("Field", "Value");
-        table.AddRow("Name", settings.Name);
-        table.AddRow("Active", isActive ? "Yes" : "No");
-        table.AddRow("Server", profile.Server);
-        table.AddRow("User", profile.UserName);
-        table.AddRow("User ID", profile.UserId);
-        table.AddRow("Token", RedactSecret(profile.Token));
-        table.AddRow("API Key", RedactSecret(profile.ApiKey));
-        table.AddRow("Username", profile.Username);
-        table.AddRow("Password", string.IsNullOrEmpty(profile.Password) ? "" : "********");
-        OutputHelper.WriteTable(table);
-
-        return Task.FromResult(0);
-    }
-
-    private static string RedactSecret(string value)
-    {
-        if (string.IsNullOrEmpty(value))
-            return "";
-        if (value.Length <= 8)
-            return "****";
-        return value[..4] + "..." + value[^4..];
+        catch (InvalidOperationException ex)
+        {
+            AnsiConsole.MarkupLine($"[red]Error:[/] {Markup.Escape(ex.Message)}");
+            return Task.FromResult(1);
+        }
     }
 }
 
 // ---------------------------------------------------------------------------
-// auth profiles delete <name>
+// auth profiles delete <name> [--server <host>]
 // ---------------------------------------------------------------------------
 
 public sealed class ProfilesDeleteSettings : GlobalSettings
@@ -231,16 +293,27 @@ public sealed class ProfilesDeleteCommand : AsyncCommand<ProfilesDeleteSettings>
 
     public override Task<int> ExecuteAsync(CommandContext context, ProfilesDeleteSettings settings, CancellationToken cancellationToken)
     {
-        var profiles = _credentialStore.GetProfiles();
-        if (!profiles.ContainsKey(settings.Name))
+        _credentialStore.ConfigPathOverride = settings.ConfigPath
+            ?? Environment.GetEnvironmentVariable("JF_CONFIG");
+
+        var hostEntry = _credentialStore.ResolveHost(settings.Server);
+        if (hostEntry is null)
         {
-            AnsiConsole.MarkupLine($"[red]Error:[/] Profile '{Markup.Escape(settings.Name)}' does not exist.");
+            AnsiConsole.MarkupLine("[red]Error:[/] Could not resolve host. Use --server to specify.");
+            return Task.FromResult(1);
+        }
+
+        var (hostname, host) = hostEntry.Value;
+
+        if (!host.Profiles.ContainsKey(settings.Name))
+        {
+            AnsiConsole.MarkupLine($"[red]Error:[/] Profile '{Markup.Escape(settings.Name)}' does not exist on host '{Markup.Escape(hostname)}'.");
             return Task.FromResult(1);
         }
 
         if (!settings.Yes)
         {
-            var confirm = AnsiConsole.Confirm($"Delete profile '{settings.Name}'?", defaultValue: false);
+            var confirm = AnsiConsole.Confirm($"Delete profile '{settings.Name}' from host '{hostname}'?", defaultValue: false);
             if (!confirm)
             {
                 AnsiConsole.MarkupLine("[yellow]Cancelled.[/]");
@@ -248,12 +321,8 @@ public sealed class ProfilesDeleteCommand : AsyncCommand<ProfilesDeleteSettings>
             }
         }
 
-        _credentialStore.DeleteProfile(settings.Name);
-        AnsiConsole.MarkupLine($"[green]Profile '{Markup.Escape(settings.Name)}' deleted.[/]");
-
-        var remaining = _credentialStore.GetActiveProfileName();
-        if (remaining is not null)
-            AnsiConsole.MarkupLine($"[dim]Active profile is now '{Markup.Escape(remaining)}'.[/]");
+        _credentialStore.DeleteProfile(hostname, settings.Name);
+        AnsiConsole.MarkupLine($"[green]Profile '{Markup.Escape(settings.Name)}' deleted from host '{Markup.Escape(hostname)}'.[/]");
 
         return Task.FromResult(0);
     }

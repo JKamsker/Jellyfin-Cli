@@ -44,11 +44,11 @@ public sealed class LoginCommand : AsyncCommand<LoginSettings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, LoginSettings settings, CancellationToken cancellationToken)
     {
-        // API key login: just store and verify
+        _credentialStore.ConfigPathOverride = settings.ConfigPath
+            ?? Environment.GetEnvironmentVariable("JF_CONFIG");
+
         if (!string.IsNullOrWhiteSpace(settings.ApiKey))
-        {
             return await LoginWithApiKey(settings);
-        }
 
         return await LoginWithPassword(settings);
     }
@@ -60,16 +60,15 @@ public sealed class LoginCommand : AsyncCommand<LoginSettings>
         try
         {
             var info = await client.System.Info.GetAsync();
-            var profileName = ResolveProfileName(settings);
+            var hostname = CredentialStore.ExtractHostname(settings.Server!);
+            var profileName = settings.Profile ?? "default";
 
-            _credentialStore.SaveProfile(profileName, new StoredCredentials
-            {
-                Server = settings.Server!,
-                ApiKey = settings.ApiKey!,
-            });
+            var profile = new ProfileConfig { ApiKey = settings.ApiKey };
+            _credentialStore.SaveProfile(hostname, profileName, profile, settings.Server!);
 
-            AnsiConsole.MarkupLine($"[green]API key saved to profile '{Markup.Escape(profileName)}'.[/]");
+            AnsiConsole.MarkupLine($"[green]API key saved.[/]");
             var table = OutputHelper.CreateTable("Field", "Value");
+            table.AddRow("Host", hostname);
             table.AddRow("Profile", profileName);
             table.AddRow("Server", settings.Server!);
             table.AddRow("Server Name", info?.ServerName ?? "(unknown)");
@@ -119,21 +118,22 @@ public sealed class LoginCommand : AsyncCommand<LoginSettings>
             return 1;
         }
 
-        var profileName = ResolveProfileName(settings);
+        var hostname = CredentialStore.ExtractHostname(settings.Server!);
+        var profileName = settings.Profile ?? "default";
 
-        _credentialStore.SaveProfile(profileName, new StoredCredentials
+        var profile = new ProfileConfig
         {
-            Server = settings.Server!,
             Token = result.AccessToken,
-            Username = settings.Username ?? string.Empty,
-            Password = password,
-            UserId = result.User.Id?.ToString() ?? string.Empty,
-            UserName = result.User.Name ?? string.Empty,
-        });
+            Username = result.User.Name ?? settings.Username,
+            UserId = result.User.Id?.ToString(),
+        };
 
-        AnsiConsole.MarkupLine($"[green]Logged in successfully. Profile '{Markup.Escape(profileName)}' saved.[/]");
+        _credentialStore.SaveProfile(hostname, profileName, profile, settings.Server!);
+
+        AnsiConsole.MarkupLine("[green]Logged in successfully.[/]");
 
         var table = OutputHelper.CreateTable("Field", "Value");
+        table.AddRow("Host", hostname);
         table.AddRow("Profile", profileName);
         table.AddRow("Server", settings.Server!);
         table.AddRow("User", result.User.Name ?? "(unknown)");
@@ -141,23 +141,5 @@ public sealed class LoginCommand : AsyncCommand<LoginSettings>
         OutputHelper.WriteTable(table);
 
         return 0;
-    }
-
-    private string ResolveProfileName(LoginSettings settings)
-    {
-        // Explicit --profile wins
-        if (!string.IsNullOrWhiteSpace(settings.Profile))
-            return settings.Profile;
-
-        // Auto-generate from hostname
-        try
-        {
-            var uri = new Uri(settings.Server!);
-            return uri.Host;
-        }
-        catch
-        {
-            return "default";
-        }
     }
 }

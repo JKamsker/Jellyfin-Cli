@@ -12,7 +12,7 @@ public abstract class ApiCommand<TSettings> : AsyncCommand<TSettings> where TSet
     private string? _resolvedServer;
     private string? _resolvedToken;
     private string? _resolvedApiKey;
-    private StoredCredentials? _resolvedProfile;
+    private ResolvedContext? _resolvedContext;
 
     protected ApiCommand(ApiClientFactory clientFactory, CredentialStore credentialStore)
     {
@@ -28,6 +28,11 @@ public abstract class ApiCommand<TSettings> : AsyncCommand<TSettings> where TSet
     public override async Task<int> ExecuteAsync(CommandContext context, TSettings settings, CancellationToken cancellationToken)
     {
         HttpDiagnosticsContext.Clear();
+
+        // Apply config path override before any config access
+        _credentialStore.ConfigPathOverride = settings.ConfigPath
+            ?? Environment.GetEnvironmentVariable("JF_CONFIG");
+
         var (server, token, apiKey) = ResolveCredentials(settings);
         _resolvedServer = server;
         _resolvedToken = token;
@@ -35,17 +40,17 @@ public abstract class ApiCommand<TSettings> : AsyncCommand<TSettings> where TSet
 
         if (string.IsNullOrEmpty(server))
         {
-            AnsiConsole.MarkupLine("[red]Error:[/] No server URL. Use --server or run 'jf auth login'.");
+            AnsiConsole.MarkupLine("[red]Error:[/] No server specified. Use --server <URL> or run 'jf auth login --server <URL>'.");
             return 1;
         }
 
         // Resolve --user me to actual user ID
         if (string.Equals(settings.User, "me", StringComparison.OrdinalIgnoreCase))
         {
-            var stored = _resolvedProfile ?? _credentialStore.Load();
-            if (!string.IsNullOrEmpty(stored?.UserId))
+            var userId = _resolvedContext?.UserId;
+            if (!string.IsNullOrEmpty(userId))
             {
-                settings.User = stored.UserId;
+                settings.User = userId;
             }
             else
             {
@@ -112,8 +117,7 @@ public abstract class ApiCommand<TSettings> : AsyncCommand<TSettings> where TSet
         if (Guid.TryParse(settings.User, out var userId))
             return userId;
 
-        var stored = _credentialStore.Load();
-        if (Guid.TryParse(stored?.UserId, out userId))
+        if (Guid.TryParse(_resolvedContext?.UserId, out userId))
             return userId;
 
         try
@@ -136,28 +140,30 @@ public abstract class ApiCommand<TSettings> : AsyncCommand<TSettings> where TSet
 
         // 2. Environment variables
         if (string.IsNullOrEmpty(server))
-            server = Environment.GetEnvironmentVariable("JF_HOST");
+            server = Environment.GetEnvironmentVariable("JF_SERVER");
         if (string.IsNullOrEmpty(token))
             token = Environment.GetEnvironmentVariable("JF_TOKEN");
         if (string.IsNullOrEmpty(apiKey))
             apiKey = Environment.GetEnvironmentVariable("JF_API_KEY");
 
-        // 3. Profile resolution (fill in anything still missing)
-        if (string.IsNullOrEmpty(server) || (string.IsNullOrEmpty(token) && string.IsNullOrEmpty(apiKey)))
-        {
-            var profileName = settings.Profile ?? Environment.GetEnvironmentVariable("JF_PROFILE");
-            var (_, profile) = _credentialStore.Resolve(profileName, server);
-            _resolvedProfile = profile;
+        // 3. Two-level profile resolution (host → profile)
+        var profileName = settings.Profile ?? Environment.GetEnvironmentVariable("JF_PROFILE");
+        var resolved = _credentialStore.Resolve(server, profileName);
+        _resolvedContext = resolved;
 
-            if (profile is not null)
-            {
-                if (string.IsNullOrEmpty(server))
-                    server = profile.Server;
-                if (string.IsNullOrEmpty(token) && !string.IsNullOrEmpty(profile.Token))
-                    token = profile.Token;
-                if (string.IsNullOrEmpty(token) && string.IsNullOrEmpty(apiKey) && !string.IsNullOrEmpty(profile.ApiKey))
-                    apiKey = profile.ApiKey;
-            }
+        if (resolved is not null)
+        {
+            // Always use the resolved base URL — handles bare hostnames, profile overrides, etc.
+            server = resolved.BaseUrl;
+            if (string.IsNullOrEmpty(token) && !string.IsNullOrEmpty(resolved.Token))
+                token = resolved.Token;
+            if (string.IsNullOrEmpty(token) && string.IsNullOrEmpty(apiKey) && !string.IsNullOrEmpty(resolved.ApiKey))
+                apiKey = resolved.ApiKey;
+        }
+        else if (!string.IsNullOrEmpty(server) && !server.Contains("://", StringComparison.Ordinal))
+        {
+            // Bare hostname not in config — prepend https:// as best effort
+            server = $"https://{server}";
         }
 
         return (server, token, apiKey);

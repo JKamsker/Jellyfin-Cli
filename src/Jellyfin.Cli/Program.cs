@@ -58,10 +58,20 @@ app.Configure(config =>
         {
             profiles.SetDescription("Manage saved server profiles");
             profiles.SetDefaultCommand<ProfilesListCommand>();
-            profiles.AddCommand<ProfilesListCommand>("list").WithDescription("List all saved profiles");
-            profiles.AddCommand<ProfilesUseCommand>("use").WithDescription("Switch the active profile");
-            profiles.AddCommand<ProfilesShowCommand>("show").WithDescription("Show details of a profile");
-            profiles.AddCommand<ProfilesDeleteCommand>("delete").WithDescription("Delete a saved profile");
+            profiles.AddCommand<ProfilesListCommand>("list").WithDescription("List all hosts and profiles");
+            profiles.AddCommand<ProfilesShowCommand>("show").WithDescription("Show the resolved profile for the current context");
+            profiles.AddCommand<ProfilesUseCommand>("use").WithDescription("Set the default profile for a host");
+            profiles.AddCommand<ProfilesRenameCommand>("rename").WithDescription("Rename a profile");
+            profiles.AddCommand<ProfilesDeleteCommand>("delete").WithDescription("Delete a profile");
+        });
+        auth.AddBranch("host", host =>
+        {
+            host.SetDescription("Manage configured hosts");
+            host.SetDefaultCommand<HostListCommand>();
+            host.AddCommand<HostListCommand>("list").WithDescription("List all configured hosts");
+            host.AddCommand<HostUseCommand>("use").WithDescription("Set the default host");
+            host.AddCommand<HostRenameCommand>("rename").WithDescription("Rename a host key");
+            host.AddCommand<HostDeleteCommand>("delete").WithDescription("Remove a host and all its profiles");
         });
         auth.AddBranch("keys", keys =>
         {

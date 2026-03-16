@@ -28,11 +28,14 @@ public sealed class LogoutCommand : ApiCommand<GlobalSettings>
             AnsiConsole.MarkupLine($"[yellow]Warning:[/] Server logout failed: {ex.Message}");
         }
 
-        var profileName = settings.Profile ?? _credentialStore.GetActiveProfileName();
-        if (!string.IsNullOrEmpty(profileName))
+        // Resolve the host and profile that were used for this session
+        var profileName = settings.Profile ?? Environment.GetEnvironmentVariable("JF_PROFILE");
+        var resolved = _credentialStore.Resolve(settings.Server, profileName);
+
+        if (resolved is not null)
         {
-            _credentialStore.DeleteProfile(profileName);
-            AnsiConsole.MarkupLine($"[green]Logged out and profile '{Markup.Escape(profileName)}' removed.[/]");
+            _credentialStore.DeleteProfile(resolved.Hostname, resolved.ProfileName);
+            AnsiConsole.MarkupLine($"[green]Logged out and removed profile '{Markup.Escape(resolved.ProfileName)}' from host '{Markup.Escape(resolved.Hostname)}'.[/]");
         }
         else
         {

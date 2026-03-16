@@ -1,230 +1,550 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
+using Spectre.Console;
+
 namespace Jellyfin.Cli.Common;
 
 public sealed class CredentialStore
 {
-    private static readonly string ConfigDir = Path.Combine(
+    private static readonly string DefaultConfigDir = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "jf");
-    private static readonly string ConfigFile = Path.Combine(ConfigDir, "config.json");
-    private static readonly string LegacyCredentialFile = Path.Combine(ConfigDir, "credentials.json");
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         PropertyNameCaseInsensitive = true,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     };
 
     private CliConfig? _cache;
 
-    /// <summary>Load credentials from the active profile (backwards-compatible).</summary>
-    public StoredCredentials? Load()
-    {
-        var config = LoadConfig();
-        if (config.ActiveProfile is not null && config.Profiles.TryGetValue(config.ActiveProfile, out var profile))
-            return profile;
+    /// <summary>Override the config file path (set from --config or JF_CONFIG).</summary>
+    public string? ConfigPathOverride { get; set; }
 
-        return config.Profiles.Values.FirstOrDefault();
-    }
-
-    /// <summary>Load credentials from a specific named profile.</summary>
-    public StoredCredentials? LoadProfile(string profileName)
-    {
-        var config = LoadConfig();
-        return config.Profiles.TryGetValue(profileName, out var profile) ? profile : null;
-    }
+    // ── Resolution ──────────────────────────────────────────────────────
 
     /// <summary>
-    /// Resolve a profile by explicit name, server URL match, or active profile fallback.
-    /// Returns the resolved profile name and credentials.
+    /// Two-level resolution: host (from server flag/env/default) → profile within host.
+    /// Returns null if resolution fails.
     /// </summary>
-    public (string? ProfileName, StoredCredentials? Credentials) Resolve(string? profileName, string? server)
+    public ResolvedContext? Resolve(string? serverOrHostname, string? profileName)
     {
         var config = LoadConfig();
 
-        // 1. Explicit profile name
-        if (!string.IsNullOrEmpty(profileName))
+        // Step 1: Determine hostname and optional URL override
+        string? hostname = null;
+        string? urlOverride = null;
+
+        if (!string.IsNullOrEmpty(serverOrHostname))
         {
-            if (config.Profiles.TryGetValue(profileName, out var profile))
-                return (profileName, profile);
-            return (profileName, null);
-        }
-
-        // 2. Match by server URL
-        if (!string.IsNullOrEmpty(server))
-        {
-            var normalizedServer = NormalizeServer(server);
-            var matches = config.Profiles
-                .Where(p => !string.IsNullOrEmpty(p.Value.Server) && NormalizeServer(p.Value.Server) == normalizedServer)
-                .ToList();
-
-            if (matches.Count == 1)
-                return (matches[0].Key, matches[0].Value);
-
-            if (matches.Count > 1)
+            if (IsFullUrl(serverOrHostname))
             {
-                // Prefer the active profile if it matches
-                var activeMatch = matches.FirstOrDefault(m => m.Key == config.ActiveProfile);
-                if (activeMatch.Key is not null)
-                    return (activeMatch.Key, activeMatch.Value);
-
-                return (matches[0].Key, matches[0].Value);
+                hostname = ExtractHostname(serverOrHostname);
+                urlOverride = serverOrHostname.TrimEnd('/');
+            }
+            else
+            {
+                hostname = NormalizeHostname(serverOrHostname);
             }
         }
 
-        // 3. Active profile
-        if (config.ActiveProfile is not null && config.Profiles.TryGetValue(config.ActiveProfile, out var active))
-            return (config.ActiveProfile, active);
+        // Step 2: Find host entry
+        HostConfig? host;
+        string resolvedHostname;
 
-        // 4. Only one profile exists — use it
-        if (config.Profiles.Count == 1)
+        if (hostname is not null)
         {
-            var single = config.Profiles.First();
-            return (single.Key, single.Value);
+            if (config.Hosts.TryGetValue(hostname, out host))
+            {
+                resolvedHostname = hostname;
+            }
+            else
+            {
+                // Host not in config — return URL-only context if we have a full URL
+                if (urlOverride is not null)
+                    return new ResolvedContext { Hostname = hostname, BaseUrl = urlOverride };
+                return null;
+            }
+        }
+        else if (!string.IsNullOrEmpty(config.DefaultHost) && config.Hosts.TryGetValue(config.DefaultHost, out host))
+        {
+            resolvedHostname = config.DefaultHost;
+        }
+        else if (config.Hosts.Count == 1)
+        {
+            var entry = config.Hosts.First();
+            resolvedHostname = entry.Key;
+            host = entry.Value;
+        }
+        else
+        {
+            return null;
         }
 
-        return (null, null);
+        // Step 3: Find profile within host
+        ProfileConfig? profile;
+        string resolvedProfileName;
+
+        if (!string.IsNullOrEmpty(profileName))
+        {
+            if (!host.Profiles.TryGetValue(profileName, out profile))
+                return null;
+            resolvedProfileName = profileName;
+        }
+        else if (!string.IsNullOrEmpty(host.DefaultProfile) && host.Profiles.TryGetValue(host.DefaultProfile, out profile))
+        {
+            resolvedProfileName = host.DefaultProfile;
+        }
+        else if (host.Profiles.Count == 1)
+        {
+            var entry = host.Profiles.First();
+            resolvedProfileName = entry.Key;
+            profile = entry.Value;
+        }
+        else
+        {
+            return null;
+        }
+
+        // Step 4: Resolve base URL (--server URL > profile.baseUrl > host.baseUrl)
+        var baseUrl = (urlOverride ?? profile.BaseUrl ?? host.BaseUrl).TrimEnd('/');
+
+        return new ResolvedContext
+        {
+            Hostname = resolvedHostname,
+            ProfileName = resolvedProfileName,
+            BaseUrl = baseUrl,
+            Token = profile.Token,
+            ApiKey = profile.ApiKey,
+            Username = profile.Username,
+            UserId = profile.UserId,
+        };
     }
 
-    /// <summary>Save credentials to the active profile (backwards-compatible).</summary>
+    /// <summary>Resolve just the host for management commands. Does not resolve a profile.</summary>
+    public (string Hostname, HostConfig Host)? ResolveHost(string? serverOrHostname)
+    {
+        var config = LoadConfig();
+
+        if (!string.IsNullOrEmpty(serverOrHostname))
+        {
+            var hostname = IsFullUrl(serverOrHostname)
+                ? ExtractHostname(serverOrHostname)
+                : NormalizeHostname(serverOrHostname);
+            if (config.Hosts.TryGetValue(hostname, out var host))
+                return (hostname, host);
+            return null;
+        }
+
+        if (!string.IsNullOrEmpty(config.DefaultHost) && config.Hosts.TryGetValue(config.DefaultHost, out var dh))
+            return (config.DefaultHost, dh);
+
+        if (config.Hosts.Count == 1)
+        {
+            var entry = config.Hosts.First();
+            return (entry.Key, entry.Value);
+        }
+
+        return null;
+    }
+
+    // ── Backward-compatible API ─────────────────────────────────────────
+
+    /// <summary>Load credentials from the default host / default profile.</summary>
+    public StoredCredentials? Load()
+    {
+        var resolved = Resolve(null, null);
+        return resolved is null ? null : ToStoredCredentials(resolved);
+    }
+
+    /// <summary>Save credentials to the default host. Creates host+profile if needed.</summary>
     public void Save(StoredCredentials credentials)
     {
-        var config = LoadConfig();
-        var profileName = config.ActiveProfile ?? "default";
-        config.Profiles[profileName] = credentials;
-        config.ActiveProfile ??= profileName;
-        SaveConfig(config);
+        var hostname = ExtractHostname(credentials.Server);
+        var profile = new ProfileConfig
+        {
+            Token = NullIfEmpty(credentials.Token),
+            ApiKey = NullIfEmpty(credentials.ApiKey),
+            Username = NullIfEmpty(credentials.UserName),
+            UserId = NullIfEmpty(credentials.UserId),
+        };
+        SaveProfile(hostname, "default", profile, credentials.Server.TrimEnd('/'));
     }
 
-    /// <summary>Save credentials to a named profile. First profile becomes active automatically.</summary>
-    public void SaveProfile(string profileName, StoredCredentials credentials)
-    {
-        var config = LoadConfig();
-        var isFirst = config.Profiles.Count == 0;
-        config.Profiles[profileName] = credentials;
-        if (isFirst || config.ActiveProfile is null)
-            config.ActiveProfile = profileName;
-        SaveConfig(config);
-    }
-
-    /// <summary>Delete the active profile (backwards-compatible).</summary>
+    /// <summary>Delete the default host's default profile.</summary>
     public void Delete()
     {
+        var resolved = Resolve(null, null);
+        if (resolved is not null)
+            DeleteProfile(resolved.Hostname, resolved.ProfileName);
+    }
+
+    // ── Host Management ─────────────────────────────────────────────────
+
+    public IReadOnlyDictionary<string, HostConfig> GetHosts() => LoadConfig().Hosts;
+
+    public string? GetDefaultHostname() => LoadConfig().DefaultHost;
+
+    public void SetDefaultHost(string hostname)
+    {
         var config = LoadConfig();
-        if (config.ActiveProfile is not null)
+        if (!config.Hosts.ContainsKey(hostname))
+            throw new InvalidOperationException($"Host '{hostname}' does not exist.");
+        config.DefaultHost = hostname;
+        SaveConfig(config);
+    }
+
+    public void RenameHost(string oldName, string newName)
+    {
+        var config = LoadConfig();
+        newName = NormalizeHostname(newName);
+        if (!config.Hosts.Remove(oldName, out var host))
+            throw new InvalidOperationException($"Host '{oldName}' does not exist.");
+        if (config.Hosts.ContainsKey(newName))
+            throw new InvalidOperationException($"Host '{newName}' already exists.");
+        config.Hosts[newName] = host;
+        if (config.DefaultHost == oldName)
+            config.DefaultHost = newName;
+        SaveConfig(config);
+    }
+
+    public void DeleteHost(string hostname)
+    {
+        var config = LoadConfig();
+        config.Hosts.Remove(hostname);
+        if (config.DefaultHost == hostname)
+            config.DefaultHost = config.Hosts.Keys.FirstOrDefault();
+        SaveConfig(config);
+    }
+
+    // ── Profile Management ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Create or update a profile under a host. Creates the host entry if it doesn't exist.
+    /// Sets defaults when this is the first host or first profile on a host.
+    /// </summary>
+    public void SaveProfile(string hostname, string profileName, ProfileConfig profile, string? hostBaseUrl = null)
+    {
+        var config = LoadConfig();
+        hostname = NormalizeHostname(hostname);
+
+        if (!config.Hosts.TryGetValue(hostname, out var host))
         {
-            config.Profiles.Remove(config.ActiveProfile);
-            config.ActiveProfile = config.Profiles.Keys.FirstOrDefault();
+            host = new HostConfig
+            {
+                BaseUrl = (hostBaseUrl ?? "").TrimEnd('/'),
+                Profiles = new(),
+            };
+            config.Hosts[hostname] = host;
         }
+        else if (!string.IsNullOrEmpty(hostBaseUrl))
+        {
+            // If the login URL differs from the host's baseUrl, store as profile override
+            var normalizedHostBase = host.BaseUrl.TrimEnd('/');
+            var normalizedLoginUrl = hostBaseUrl.TrimEnd('/');
+            if (!string.Equals(normalizedHostBase, normalizedLoginUrl, StringComparison.OrdinalIgnoreCase))
+                profile.BaseUrl = normalizedLoginUrl;
+        }
+
+        host.Profiles[profileName] = profile;
+
+        // First profile on host → set as default
+        if (host.DefaultProfile is null || host.Profiles.Count == 1)
+            host.DefaultProfile = profileName;
+
+        // First host → set as default
+        if (config.DefaultHost is null || config.Hosts.Count == 1)
+            config.DefaultHost = hostname;
+
         SaveConfig(config);
     }
 
-    /// <summary>Delete a named profile. If it was active, the next profile becomes active.</summary>
-    public void DeleteProfile(string profileName)
+    public void SetDefaultProfile(string hostname, string profileName)
     {
         var config = LoadConfig();
-        config.Profiles.Remove(profileName);
-        if (config.ActiveProfile == profileName)
-            config.ActiveProfile = config.Profiles.Keys.FirstOrDefault();
+        if (!config.Hosts.TryGetValue(hostname, out var host))
+            throw new InvalidOperationException($"Host '{hostname}' does not exist.");
+        if (!host.Profiles.ContainsKey(profileName))
+            throw new InvalidOperationException($"Profile '{profileName}' does not exist on host '{hostname}'.");
+        host.DefaultProfile = profileName;
         SaveConfig(config);
     }
 
-    public IReadOnlyDictionary<string, StoredCredentials> GetProfiles()
-    {
-        return LoadConfig().Profiles;
-    }
-
-    public string? GetActiveProfileName()
-    {
-        return LoadConfig().ActiveProfile;
-    }
-
-    public void SetActiveProfile(string profileName)
+    public void RenameProfile(string hostname, string oldName, string newName)
     {
         var config = LoadConfig();
-        if (!config.Profiles.ContainsKey(profileName))
-            throw new InvalidOperationException($"Profile '{profileName}' does not exist.");
-        config.ActiveProfile = profileName;
+        if (!config.Hosts.TryGetValue(hostname, out var host))
+            throw new InvalidOperationException($"Host '{hostname}' does not exist.");
+        if (!host.Profiles.Remove(oldName, out var profile))
+            throw new InvalidOperationException($"Profile '{oldName}' does not exist on host '{hostname}'.");
+        if (host.Profiles.ContainsKey(newName))
+            throw new InvalidOperationException($"Profile '{newName}' already exists on host '{hostname}'.");
+        host.Profiles[newName] = profile;
+        if (host.DefaultProfile == oldName)
+            host.DefaultProfile = newName;
         SaveConfig(config);
     }
+
+    public void DeleteProfile(string hostname, string profileName)
+    {
+        var config = LoadConfig();
+        if (!config.Hosts.TryGetValue(hostname, out var host))
+            return;
+        host.Profiles.Remove(profileName);
+
+        if (host.DefaultProfile == profileName)
+            host.DefaultProfile = host.Profiles.Keys.FirstOrDefault();
+
+        // Last profile → remove the host
+        if (host.Profiles.Count == 0)
+        {
+            config.Hosts.Remove(hostname);
+            if (config.DefaultHost == hostname)
+                config.DefaultHost = config.Hosts.Keys.FirstOrDefault();
+        }
+
+        SaveConfig(config);
+    }
+
+    // ── Config Loading & Migration ──────────────────────────────────────
 
     private CliConfig LoadConfig()
     {
         if (_cache is not null)
             return _cache;
 
-        if (File.Exists(ConfigFile))
+        var configPath = GetConfigFilePath();
+
+        if (File.Exists(configPath))
         {
-            var json = File.ReadAllText(ConfigFile);
-            _cache = JsonSerializer.Deserialize<CliConfig>(json, JsonOptions) ?? new CliConfig();
-            return _cache;
+            var json = File.ReadAllText(configPath);
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+
+            // New two-level format (has "hosts" or "defaultHost")
+            if (root.TryGetProperty("hosts", out _) || root.TryGetProperty("defaultHost", out _))
+            {
+                _cache = JsonSerializer.Deserialize<CliConfig>(json, JsonOptions) ?? new CliConfig();
+                return _cache;
+            }
+
+            // Previous flat format (has "activeProfile" and "profiles")
+            if (root.TryGetProperty("activeProfile", out _) || root.TryGetProperty("profiles", out _))
+            {
+                _cache = MigrateFromFlatConfig(json);
+                return _cache;
+            }
         }
 
-        // Migrate from legacy credentials.json
-        if (File.Exists(LegacyCredentialFile))
+        // Legacy credentials.json
+        var legacyPath = Path.Combine(GetConfigDir(), "credentials.json");
+        if (File.Exists(legacyPath))
         {
-            var json = File.ReadAllText(LegacyCredentialFile);
-            var legacy = JsonSerializer.Deserialize<StoredCredentials>(json, JsonOptions);
-            if (legacy is not null && !string.IsNullOrEmpty(legacy.Server))
-            {
-                var config = new CliConfig
-                {
-                    ActiveProfile = "default",
-                    Profiles = { ["default"] = legacy },
-                };
-                SaveConfig(config);
-
-                var backup = LegacyCredentialFile + ".bak";
-                try
-                {
-                    if (!File.Exists(backup))
-                        File.Move(LegacyCredentialFile, backup);
-                    else
-                        File.Delete(LegacyCredentialFile);
-                }
-                catch
-                {
-                    // Best-effort rename; not critical
-                }
-
-                return config;
-            }
+            _cache = MigrateFromLegacyCredentials(legacyPath);
+            return _cache;
         }
 
         _cache = new CliConfig();
         return _cache;
     }
 
+    private CliConfig MigrateFromLegacyCredentials(string legacyPath)
+    {
+        var json = File.ReadAllText(legacyPath);
+        // Legacy file uses PascalCase; PropertyNameCaseInsensitive handles it
+        var legacy = JsonSerializer.Deserialize<StoredCredentials>(json, JsonOptions);
+
+        if (legacy is null || string.IsNullOrEmpty(legacy.Server))
+            return new CliConfig();
+
+        var hostname = ExtractHostname(legacy.Server);
+        var config = new CliConfig
+        {
+            DefaultHost = hostname,
+            Hosts =
+            {
+                [hostname] = new HostConfig
+                {
+                    BaseUrl = legacy.Server.TrimEnd('/'),
+                    DefaultProfile = "default",
+                    Profiles =
+                    {
+                        ["default"] = new ProfileConfig
+                        {
+                            Token = NullIfEmpty(legacy.Token),
+                            ApiKey = NullIfEmpty(legacy.ApiKey),
+                            Username = NullIfEmpty(legacy.UserName),
+                            UserId = NullIfEmpty(legacy.UserId),
+                        }
+                    }
+                }
+            }
+        };
+
+        SaveConfig(config);
+
+        var backup = legacyPath + ".bak";
+        try
+        {
+            if (!File.Exists(backup))
+                File.Move(legacyPath, backup);
+            else
+                File.Delete(legacyPath);
+        }
+        catch { /* best-effort */ }
+
+        AnsiConsole.MarkupLine($"[dim]Migrated credentials to new profile format. Backup: {Markup.Escape(backup)}[/]");
+        return config;
+    }
+
+    private CliConfig MigrateFromFlatConfig(string json)
+    {
+        var flat = JsonSerializer.Deserialize<FlatConfig>(json, JsonOptions);
+        if (flat is null)
+            return new CliConfig();
+
+        var config = new CliConfig();
+
+        foreach (var (name, fp) in flat.Profiles)
+        {
+            if (string.IsNullOrEmpty(fp.Server))
+                continue;
+
+            var hostname = ExtractHostname(fp.Server);
+
+            if (!config.Hosts.TryGetValue(hostname, out var host))
+            {
+                host = new HostConfig
+                {
+                    BaseUrl = fp.Server.TrimEnd('/'),
+                    Profiles = new(),
+                };
+                config.Hosts[hostname] = host;
+            }
+
+            var profileName = name == hostname ? "default" : name;
+            var profile = new ProfileConfig
+            {
+                Token = NullIfEmpty(fp.Token),
+                ApiKey = NullIfEmpty(fp.ApiKey),
+                Username = NullIfEmpty(fp.UserName),
+                UserId = NullIfEmpty(fp.UserId),
+            };
+
+            // If this profile's server differs from host baseUrl, set override
+            if (!string.Equals(fp.Server.TrimEnd('/'), host.BaseUrl, StringComparison.OrdinalIgnoreCase))
+                profile.BaseUrl = fp.Server.TrimEnd('/');
+
+            host.Profiles[profileName] = profile;
+            host.DefaultProfile ??= profileName;
+        }
+
+        // Set default host from the active profile's server
+        if (flat.ActiveProfile is not null
+            && flat.Profiles.TryGetValue(flat.ActiveProfile, out var active)
+            && !string.IsNullOrEmpty(active.Server))
+        {
+            config.DefaultHost = ExtractHostname(active.Server);
+        }
+        else if (config.Hosts.Count > 0)
+        {
+            config.DefaultHost = config.Hosts.Keys.First();
+        }
+
+        SaveConfig(config);
+        return config;
+    }
+
     private void SaveConfig(CliConfig config)
     {
         _cache = config;
-        Directory.CreateDirectory(ConfigDir);
+        var dir = GetConfigDir();
+        Directory.CreateDirectory(dir);
+        var path = GetConfigFilePath();
+        var tempPath = path + ".tmp";
         var json = JsonSerializer.Serialize(config, JsonOptions);
-        File.WriteAllText(ConfigFile, json);
+        File.WriteAllText(tempPath, json);
+        File.Move(tempPath, path, overwrite: true);
     }
 
-    private static string NormalizeServer(string server)
+    // ── Helpers ──────────────────────────────────────────────────────────
+
+    private string GetConfigDir()
     {
-        return server.TrimEnd('/').ToLowerInvariant();
+        if (!string.IsNullOrEmpty(ConfigPathOverride))
+            return Path.GetDirectoryName(ConfigPathOverride) ?? DefaultConfigDir;
+        var envPath = Environment.GetEnvironmentVariable("JF_CONFIG");
+        if (!string.IsNullOrEmpty(envPath))
+            return Path.GetDirectoryName(envPath) ?? DefaultConfigDir;
+        return DefaultConfigDir;
     }
-}
 
-public sealed class StoredCredentials
-{
-    public string Server { get; set; } = string.Empty;
-    public string Token { get; set; } = string.Empty;
-    public string ApiKey { get; set; } = string.Empty;
-    public string Username { get; set; } = string.Empty;
-    public string Password { get; set; } = string.Empty;
-    public string UserId { get; set; } = string.Empty;
-    public string UserName { get; set; } = string.Empty;
-}
+    private string GetConfigFilePath()
+    {
+        if (!string.IsNullOrEmpty(ConfigPathOverride))
+            return ConfigPathOverride;
+        var envPath = Environment.GetEnvironmentVariable("JF_CONFIG");
+        if (!string.IsNullOrEmpty(envPath))
+            return envPath;
+        return Path.Combine(DefaultConfigDir, "config.json");
+    }
 
-internal sealed class CliConfig
-{
-    public string? ActiveProfile { get; set; }
-    public Dictionary<string, StoredCredentials> Profiles { get; set; } = new();
+    public static string ExtractHostname(string serverUrl)
+    {
+        if (string.IsNullOrEmpty(serverUrl))
+            return string.Empty;
+
+        if (IsFullUrl(serverUrl))
+        {
+            try
+            {
+                return new Uri(serverUrl).Host.ToLowerInvariant();
+            }
+            catch
+            {
+                return NormalizeHostname(serverUrl);
+            }
+        }
+
+        return NormalizeHostname(serverUrl);
+    }
+
+    private static bool IsFullUrl(string value)
+        => value.Contains("://", StringComparison.Ordinal);
+
+    private static string NormalizeHostname(string hostname)
+        => hostname.Trim().ToLowerInvariant();
+
+    private static string? NullIfEmpty(string? value)
+        => string.IsNullOrEmpty(value) ? null : value;
+
+    private static StoredCredentials ToStoredCredentials(ResolvedContext ctx) => new()
+    {
+        Server = ctx.BaseUrl,
+        Token = ctx.Token ?? string.Empty,
+        ApiKey = ctx.ApiKey ?? string.Empty,
+        UserId = ctx.UserId ?? string.Empty,
+        UserName = ctx.Username ?? string.Empty,
+    };
+
+    // ── Legacy flat-config types (for migration only) ───────────────────
+
+    private sealed class FlatConfig
+    {
+        public string? ActiveProfile { get; set; }
+        public Dictionary<string, FlatProfile> Profiles { get; set; } = new();
+    }
+
+    private sealed class FlatProfile
+    {
+        public string Server { get; set; } = string.Empty;
+        public string Token { get; set; } = string.Empty;
+        public string ApiKey { get; set; } = string.Empty;
+        public string Username { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+        public string UserId { get; set; } = string.Empty;
+        public string UserName { get; set; } = string.Empty;
+    }
 }
