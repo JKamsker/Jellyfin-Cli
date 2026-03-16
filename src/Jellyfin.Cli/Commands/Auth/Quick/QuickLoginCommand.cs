@@ -76,10 +76,15 @@ public sealed class QuickLoginCommand : ApiCommand<GlobalSettings>
             return 1;
         }
 
-        var stored = _credentialStore.Load();
-        var serverUrl = settings.Server ?? stored?.Server ?? string.Empty;
+        var serverUrl = ResolvedServer;
         var hostname = CredentialStore.ExtractHostname(serverUrl);
         var profileName = settings.Profile ?? "default";
+
+        if (string.IsNullOrEmpty(hostname))
+        {
+            AnsiConsole.MarkupLine("[red]Error:[/] Could not determine hostname from server URL.");
+            return 1;
+        }
 
         var profile = new ProfileConfig
         {

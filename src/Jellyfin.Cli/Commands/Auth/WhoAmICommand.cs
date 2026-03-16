@@ -8,12 +8,9 @@ namespace Jellyfin.Cli.Commands.Auth;
 
 public sealed class WhoAmICommand : ApiCommand<GlobalSettings>
 {
-    private readonly CredentialStore _credentialStore;
-
     public WhoAmICommand(ApiClientFactory clientFactory, CredentialStore credentialStore)
         : base(clientFactory, credentialStore)
     {
-        _credentialStore = credentialStore;
     }
 
     protected override async Task<int> ExecuteAsync(
@@ -27,8 +24,7 @@ public sealed class WhoAmICommand : ApiCommand<GlobalSettings>
             return 1;
         }
 
-        var profileName = settings.Profile ?? Environment.GetEnvironmentVariable("JF_PROFILE");
-        var resolved = _credentialStore.Resolve(settings.Server, profileName);
+        var resolved = ResolvedContext;
 
         if (settings.Json)
         {

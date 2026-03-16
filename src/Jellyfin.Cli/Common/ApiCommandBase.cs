@@ -24,6 +24,7 @@ public abstract class ApiCommand<TSettings> : AsyncCommand<TSettings> where TSet
     protected string ResolvedServer => _resolvedServer ?? throw new InvalidOperationException("Resolved server is unavailable.");
     protected string? ResolvedToken => _resolvedToken;
     protected string? ResolvedApiKey => _resolvedApiKey;
+    protected ResolvedContext? ResolvedContext => _resolvedContext;
 
     public override async Task<int> ExecuteAsync(CommandContext context, TSettings settings, CancellationToken cancellationToken)
     {

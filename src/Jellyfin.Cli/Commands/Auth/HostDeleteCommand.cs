@@ -14,7 +14,7 @@ public sealed class HostDeleteSettings : GlobalSettings
     public string Hostname { get; set; } = string.Empty;
 
     [CommandOption("-f|--force")]
-    [Description("Skip confirmation even if host has multiple profiles")]
+    [Description("Skip deletion confirmation")]
     public bool Force { get; set; }
 
     public override ValidationResult Validate()
@@ -48,10 +48,11 @@ public sealed class HostDeleteCommand : AsyncCommand<HostDeleteSettings>
             return Task.FromResult(1);
         }
 
-        if (!settings.Force && !settings.Yes && host.Profiles.Count > 1)
+        if (!settings.Force && !settings.Yes && host.Profiles.Count > 0)
         {
+            var profileLabel = host.Profiles.Count == 1 ? "1 profile" : $"{host.Profiles.Count} profiles";
             var confirm = AnsiConsole.Confirm(
-                $"Host '{hostname}' has {host.Profiles.Count} profiles. Delete all?", defaultValue: false);
+                $"Host '{Markup.Escape(hostname)}' has {profileLabel}. Delete?", defaultValue: false);
             if (!confirm)
             {
                 AnsiConsole.MarkupLine("[yellow]Cancelled.[/]");

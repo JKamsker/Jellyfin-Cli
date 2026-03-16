@@ -76,7 +76,7 @@ public sealed class CredentialStore
         }
         else if (config.Hosts.Count == 1)
         {
-            var entry = config.Hosts.First();
+            var entry = config.Hosts.Single();
             resolvedHostname = entry.Key;
             host = entry.Value;
         }
@@ -101,7 +101,7 @@ public sealed class CredentialStore
         }
         else if (host.Profiles.Count == 1)
         {
-            var entry = host.Profiles.First();
+            var entry = host.Profiles.Single();
             resolvedProfileName = entry.Key;
             profile = entry.Value;
         }
@@ -143,7 +143,7 @@ public sealed class CredentialStore
 
         if (config.Hosts.Count == 1)
         {
-            var entry = config.Hosts.First();
+            var entry = config.Hosts.Single();
             return (entry.Key, entry.Value);
         }
 
@@ -296,7 +296,7 @@ public sealed class CredentialStore
         if (matches.Count > 1)
         {
             var hostnames = string.Join(", ", matches.Select(m => m.Key));
-            AnsiConsole.MarkupLine($"[yellow]Warning:[/] Alias '{Markup.Escape(key)}' matches multiple hosts: {Markup.Escape(hostnames)}. Using '{Markup.Escape(matches[0].Key)}'.");
+            Console.Error.WriteLine($"Warning: Alias '{key}' matches multiple hosts: {hostnames}. Using '{matches[0].Key}'.");
         }
 
         return (matches[0].Key, matches[0].Value);
@@ -476,7 +476,11 @@ public sealed class CredentialStore
             else
                 File.Delete(legacyPath);
         }
-        catch { /* best-effort */ }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Trace.TraceWarning(
+                "Failed to clean up legacy credentials file '{0}': {1}", legacyPath, ex.Message);
+        }
 
         AnsiConsole.MarkupLine($"[dim]Migrated credentials to new profile format. Backup: {Markup.Escape(backup)}[/]");
         return config;
@@ -547,9 +551,17 @@ public sealed class CredentialStore
         Directory.CreateDirectory(dir);
         var path = GetConfigFilePath();
         var tempPath = path + ".tmp";
-        var json = JsonSerializer.Serialize(config, JsonOptions);
-        File.WriteAllText(tempPath, json);
-        File.Move(tempPath, path, overwrite: true);
+        try
+        {
+            var json = JsonSerializer.Serialize(config, JsonOptions);
+            File.WriteAllText(tempPath, json);
+            File.Move(tempPath, path, overwrite: true);
+        }
+        finally
+        {
+            try { if (File.Exists(tempPath)) File.Delete(tempPath); }
+            catch { /* best-effort cleanup */ }
+        }
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────
@@ -625,7 +637,6 @@ public sealed class CredentialStore
         public string Server { get; set; } = string.Empty;
         public string Token { get; set; } = string.Empty;
         public string ApiKey { get; set; } = string.Empty;
-        public string Username { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
         public string UserId { get; set; } = string.Empty;
         public string UserName { get; set; } = string.Empty;

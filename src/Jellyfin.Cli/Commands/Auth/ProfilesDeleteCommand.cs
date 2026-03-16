@@ -35,7 +35,7 @@ public sealed class ProfilesDeleteCommand : AsyncCommand<ProfilesDeleteSettings>
         _credentialStore.ConfigPathOverride = settings.ConfigPath
             ?? Environment.GetEnvironmentVariable("JF_CONFIG");
 
-        var hostEntry = _credentialStore.ResolveHost(settings.Server);
+        var hostEntry = _credentialStore.ResolveHost(settings.Server ?? Environment.GetEnvironmentVariable("JF_SERVER"));
         if (hostEntry is null)
         {
             AnsiConsole.MarkupLine("[red]Error:[/] Could not resolve host. Use --server to specify.");
@@ -52,7 +52,7 @@ public sealed class ProfilesDeleteCommand : AsyncCommand<ProfilesDeleteSettings>
 
         if (!settings.Yes)
         {
-            var confirm = AnsiConsole.Confirm($"Delete profile '{settings.Name}' from host '{hostname}'?", defaultValue: false);
+            var confirm = AnsiConsole.Confirm($"Delete profile '{Markup.Escape(settings.Name)}' from host '{Markup.Escape(hostname)}'?", defaultValue: false);
             if (!confirm)
             {
                 AnsiConsole.MarkupLine("[yellow]Cancelled.[/]");

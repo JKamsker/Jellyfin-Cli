@@ -35,7 +35,7 @@ public sealed class ProfilesUseCommand : AsyncCommand<ProfilesUseSettings>
         _credentialStore.ConfigPathOverride = settings.ConfigPath
             ?? Environment.GetEnvironmentVariable("JF_CONFIG");
 
-        var hostEntry = _credentialStore.ResolveHost(settings.Server);
+        var hostEntry = _credentialStore.ResolveHost(settings.Server ?? Environment.GetEnvironmentVariable("JF_SERVER"));
         if (hostEntry is null)
         {
             AnsiConsole.MarkupLine("[red]Error:[/] Could not resolve host. Use --server to specify.");

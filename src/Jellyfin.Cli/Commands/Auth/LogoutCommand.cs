@@ -28,9 +28,8 @@ public sealed class LogoutCommand : ApiCommand<GlobalSettings>
             AnsiConsole.MarkupLine($"[yellow]Warning:[/] Server logout failed: {ex.Message}");
         }
 
-        // Resolve the host and profile that were used for this session
-        var profileName = settings.Profile ?? Environment.GetEnvironmentVariable("JF_PROFILE");
-        var resolved = _credentialStore.Resolve(settings.Server, profileName);
+        // Use the context resolved by the base class (matches the host/profile used for the API call)
+        var resolved = ResolvedContext;
 
         if (resolved is not null)
         {
