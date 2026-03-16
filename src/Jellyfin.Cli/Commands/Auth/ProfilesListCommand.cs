@@ -68,7 +68,12 @@ public sealed class ProfilesListCommand : AsyncCommand<GlobalSettings>
                 var marker = isDefault ? "[green]*[/] " : "  ";
                 var defaultTag = isDefault ? " [dim](default)[/]" : "";
                 var user = !string.IsNullOrEmpty(profile.Username) ? $" [dim]--[/] {Markup.Escape(profile.Username)}" : "";
-                var auth = !string.IsNullOrEmpty(profile.ApiKey) ? " [dim]-- API key[/]" : "";
+                var auth = DescribeAuth(profile) switch
+                {
+                    "token" => " [dim]-- token[/]",
+                    "api-key" => " [dim]-- API key[/]",
+                    _ => "",
+                };
                 var urlOverride = !string.IsNullOrEmpty(profile.BaseUrl) ? $" [dim](baseUrl: {Markup.Escape(profile.BaseUrl)})[/]" : "";
                 AnsiConsole.MarkupLine($"  {marker}{Markup.Escape(profileName)}{defaultTag}{user}{auth}{urlOverride}");
             }

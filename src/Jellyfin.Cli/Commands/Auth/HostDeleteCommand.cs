@@ -19,7 +19,7 @@ public sealed class HostDeleteSettings : GlobalSettings
 
     public override ValidationResult Validate()
     {
-        if (string.IsNullOrWhiteSpace(Hostname))
+        if (string.IsNullOrWhiteSpace(Hostname?.Trim()))
             return ValidationResult.Error("Hostname is required.");
         return ValidationResult.Success();
     }
@@ -39,7 +39,7 @@ public sealed class HostDeleteCommand : AsyncCommand<HostDeleteSettings>
         _credentialStore.ConfigPathOverride = settings.ConfigPath
             ?? Environment.GetEnvironmentVariable("JF_CONFIG");
 
-        var hostname = settings.Hostname.ToLowerInvariant();
+        var hostname = settings.Hostname.Trim().ToLowerInvariant();
         var hosts = _credentialStore.GetHosts();
 
         if (!hosts.TryGetValue(hostname, out var host))

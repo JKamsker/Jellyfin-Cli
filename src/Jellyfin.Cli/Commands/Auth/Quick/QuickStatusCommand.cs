@@ -16,7 +16,7 @@ public sealed class QuickStatusCommand : ApiCommand<GlobalSettings>
     protected override async Task<int> ExecuteAsync(
         CommandContext context, GlobalSettings settings, JellyfinApiClient client, CancellationToken cancellationToken)
     {
-        var enabled = await client.QuickConnect.Enabled.GetAsync();
+        var enabled = await client.QuickConnect.Enabled.GetAsync(cancellationToken: cancellationToken);
 
         if (settings.Json)
         {

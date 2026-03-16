@@ -177,7 +177,7 @@ public sealed class CredentialStore
     public void Delete()
     {
         var resolved = Resolve(null, null);
-        if (resolved is not null)
+        if (resolved is not null && !string.IsNullOrEmpty(resolved.ProfileName))
             DeleteProfile(resolved.Hostname, resolved.ProfileName);
     }
 
@@ -227,14 +227,25 @@ public sealed class CredentialStore
     /// </summary>
     public string? AddAlias(string hostname, string alias)
     {
+        AddAlias(hostname, alias, out var conflictHost);
+        return conflictHost;
+    }
+
+    /// <summary>
+    /// Add an alias to a host. Returns true if the alias was added (false if it already existed).
+    /// Also returns the hostname of a conflicting host (if any) via <paramref name="conflictHost"/>.
+    /// </summary>
+    public bool AddAlias(string hostname, string alias, out string? conflictHost)
+    {
         var config = LoadConfig();
+        hostname = NormalizeHostname(hostname);
         alias = NormalizeHostname(alias);
 
         if (!config.Hosts.TryGetValue(hostname, out var host))
             throw new InvalidOperationException($"Host '{hostname}' does not exist.");
 
         // Check for conflicts on other hosts
-        string? conflictHost = null;
+        conflictHost = null;
         foreach (var (key, other) in config.Hosts)
         {
             if (key == hostname) continue;
@@ -246,11 +257,12 @@ public sealed class CredentialStore
         }
 
         host.Aliases ??= new();
-        if (!host.Aliases.Contains(alias, StringComparer.OrdinalIgnoreCase))
-            host.Aliases.Add(alias);
+        if (host.Aliases.Contains(alias, StringComparer.OrdinalIgnoreCase))
+            return false;
 
+        host.Aliases.Add(alias);
         SaveConfig(config);
-        return conflictHost;
+        return true;
     }
 
     public void RemoveAlias(string hostname, string alias)
@@ -296,7 +308,7 @@ public sealed class CredentialStore
         if (matches.Count > 1)
         {
             var hostnames = string.Join(", ", matches.Select(m => m.Key));
-            Console.Error.WriteLine($"Warning: Alias '{key}' matches multiple hosts: {hostnames}. Using '{matches[0].Key}'.");
+            AnsiConsole.MarkupLine($"[yellow]Warning:[/] Alias '{Markup.Escape(key)}' matches multiple hosts: {Markup.Escape(hostnames)}. Using '{Markup.Escape(matches[0].Key)}'.");
         }
 
         return (matches[0].Key, matches[0].Value);

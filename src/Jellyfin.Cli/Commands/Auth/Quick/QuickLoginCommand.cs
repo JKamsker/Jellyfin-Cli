@@ -21,7 +21,7 @@ public sealed class QuickLoginCommand : ApiCommand<GlobalSettings>
         CommandContext context, GlobalSettings settings, JellyfinApiClient client, CancellationToken cancellationToken)
     {
         // Check if Quick Connect is enabled
-        var enabled = await client.QuickConnect.Enabled.GetAsync();
+        var enabled = await client.QuickConnect.Enabled.GetAsync(cancellationToken: cancellationToken);
         if (enabled != true)
         {
             AnsiConsole.MarkupLine("[red]Quick Connect is not enabled on this server.[/]");
@@ -29,7 +29,7 @@ public sealed class QuickLoginCommand : ApiCommand<GlobalSettings>
         }
 
         // Initiate a new Quick Connect request
-        var initResult = await client.QuickConnect.Initiate.PostAsync();
+        var initResult = await client.QuickConnect.Initiate.PostAsync(cancellationToken: cancellationToken);
         if (initResult?.Code is null || initResult.Secret is null)
         {
             AnsiConsole.MarkupLine("[red]Failed to initiate Quick Connect.[/]");
@@ -46,12 +46,12 @@ public sealed class QuickLoginCommand : ApiCommand<GlobalSettings>
             {
                 for (var i = 0; i < 120; i++) // up to ~2 minutes
                 {
-                    await Task.Delay(1000);
+                    await Task.Delay(1000, cancellationToken);
 
                     var status = await client.QuickConnect.Connect.GetAsync(cfg =>
                     {
                         cfg.QueryParameters.Secret = initResult.Secret;
-                    });
+                    }, cancellationToken: cancellationToken);
 
                     if (status?.Authenticated == true)
                         return true;
@@ -68,7 +68,8 @@ public sealed class QuickLoginCommand : ApiCommand<GlobalSettings>
 
         // Authenticate with the secret
         var authResult = await client.Users.AuthenticateWithQuickConnect.PostAsync(
-            new QuickConnectDto { Secret = initResult.Secret });
+            new QuickConnectDto { Secret = initResult.Secret },
+            cancellationToken: cancellationToken);
 
         if (authResult?.AccessToken is null || authResult.User is null)
         {

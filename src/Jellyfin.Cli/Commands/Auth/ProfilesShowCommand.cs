@@ -29,6 +29,13 @@ public sealed class ProfilesShowCommand : AsyncCommand<GlobalSettings>
             return Task.FromResult(1);
         }
 
+        if (string.IsNullOrEmpty(resolved.ProfileName))
+        {
+            AnsiConsole.MarkupLine("[red]Error:[/] Could not resolve a profile. Use --server and/or --profile.");
+            return Task.FromResult(1);
+        }
+
+        var profileName = resolved.ProfileName;
         var auth = !string.IsNullOrEmpty(resolved.Token) ? "token"
             : !string.IsNullOrEmpty(resolved.ApiKey) ? "api-key"
             : "none";
@@ -38,7 +45,7 @@ public sealed class ProfilesShowCommand : AsyncCommand<GlobalSettings>
             OutputHelper.WriteJson(new
             {
                 host = resolved.Hostname,
-                profile = resolved.ProfileName,
+                profile = profileName,
                 baseUrl = resolved.BaseUrl,
                 username = resolved.Username,
                 auth,
@@ -48,7 +55,7 @@ public sealed class ProfilesShowCommand : AsyncCommand<GlobalSettings>
 
         var table = OutputHelper.CreateTable("Field", "Value");
         table.AddRow("Host", resolved.Hostname);
-        table.AddRow("Profile", resolved.ProfileName);
+        table.AddRow("Profile", profileName);
         table.AddRow("Base URL", resolved.BaseUrl);
         table.AddRow("Username", resolved.Username ?? "");
         table.AddRow("Auth", auth);

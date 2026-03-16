@@ -43,10 +43,16 @@ public sealed class HostAliasAddCommand : AsyncCommand<HostAliasAddSettings>
 
         try
         {
-            var conflict = _credentialStore.AddAlias(settings.Hostname.ToLowerInvariant(), settings.Alias);
-            AnsiConsole.MarkupLine($"[green]Alias '{Markup.Escape(settings.Alias)}' added to host '{Markup.Escape(settings.Hostname)}'.[/]");
+            var hostname = settings.Hostname.Trim().ToLowerInvariant();
+            var alias = settings.Alias.Trim().ToLowerInvariant();
+
+            var added = _credentialStore.AddAlias(hostname, alias, out var conflict);
+            if (added)
+                AnsiConsole.MarkupLine($"[green]Alias '{Markup.Escape(alias)}' added to host '{Markup.Escape(hostname)}'.[/]");
+            else
+                AnsiConsole.MarkupLine($"[yellow]Alias '{Markup.Escape(alias)}' already exists on host '{Markup.Escape(hostname)}'.[/]");
             if (conflict is not null)
-                AnsiConsole.MarkupLine($"[yellow]Warning:[/] Host '{Markup.Escape(conflict)}' also has this alias. Using --server '{Markup.Escape(settings.Alias)}' will resolve to the first match.");
+                AnsiConsole.MarkupLine($"[yellow]Warning:[/] Host '{Markup.Escape(conflict)}' also has this alias. Using --server '{Markup.Escape(alias)}' will resolve to the first match.");
             return Task.FromResult(0);
         }
         catch (InvalidOperationException ex)

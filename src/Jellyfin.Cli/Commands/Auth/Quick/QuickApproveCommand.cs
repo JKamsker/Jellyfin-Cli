@@ -33,26 +33,18 @@ public sealed class QuickApproveCommand : ApiCommand<QuickApproveSettings>
     protected override async Task<int> ExecuteAsync(
         CommandContext context, QuickApproveSettings settings, JellyfinApiClient client, CancellationToken cancellationToken)
     {
-        try
+        var result = await client.QuickConnect.Authorize.PostAsync(cfg =>
         {
-            var result = await client.QuickConnect.Authorize.PostAsync(cfg =>
-            {
-                cfg.QueryParameters.Code = settings.Code;
-            });
+            cfg.QueryParameters.Code = settings.Code;
+        }, cancellationToken: cancellationToken);
 
-            if (result == true)
-            {
-                AnsiConsole.MarkupLine($"[green]Quick Connect code '[white]{settings.Code}[/]' approved.[/]");
-                return 0;
-            }
-
-            AnsiConsole.MarkupLine("[red]Authorization was not confirmed by the server.[/]");
-            return 1;
-        }
-        catch (Exception ex)
+        if (result == true)
         {
-            AnsiConsole.MarkupLine($"[red]Failed to approve Quick Connect code:[/] {ex.Message}");
-            return 1;
+            AnsiConsole.MarkupLine($"[green]Quick Connect code '[white]{settings.Code}[/]' approved.[/]");
+            return 0;
         }
+
+        AnsiConsole.MarkupLine("[red]Authorization was not confirmed by the server.[/]");
+        return 1;
     }
 }
