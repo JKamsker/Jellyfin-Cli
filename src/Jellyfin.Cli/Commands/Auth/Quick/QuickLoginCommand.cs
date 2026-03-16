@@ -1,5 +1,3 @@
-using System.ComponentModel;
-
 using Jellyfin.Cli.Api.Generated;
 using Jellyfin.Cli.Api.Generated.Models;
 using Jellyfin.Cli.Common;
@@ -8,10 +6,6 @@ using Spectre.Console;
 using Spectre.Console.Cli;
 
 namespace Jellyfin.Cli.Commands.Auth.Quick;
-
-// ---------------------------------------------------------------------------
-// Quick Connect Login -- initiate, poll, then authenticate
-// ---------------------------------------------------------------------------
 
 public sealed class QuickLoginCommand : ApiCommand<GlobalSettings>
 {
@@ -105,94 +99,6 @@ public sealed class QuickLoginCommand : ApiCommand<GlobalSettings>
         table.AddRow("User", authResult.User.Name ?? "(unknown)");
         table.AddRow("User ID", authResult.User.Id?.ToString() ?? "(unknown)");
         OutputHelper.WriteTable(table);
-
-        return 0;
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Quick Connect Approve -- authorize a pending code (requires existing auth)
-// ---------------------------------------------------------------------------
-
-public sealed class QuickApproveSettings : GlobalSettings
-{
-    [CommandOption("--code <CODE>")]
-    [Description("The Quick Connect code to approve")]
-    public string Code { get; set; } = string.Empty;
-
-    public override ValidationResult Validate()
-    {
-        if (string.IsNullOrWhiteSpace(Code))
-            return ValidationResult.Error("--code is required.");
-
-        return ValidationResult.Success();
-    }
-}
-
-public sealed class QuickApproveCommand : ApiCommand<QuickApproveSettings>
-{
-    public QuickApproveCommand(ApiClientFactory clientFactory, CredentialStore credentialStore)
-        : base(clientFactory, credentialStore)
-    {
-    }
-
-    protected override async Task<int> ExecuteAsync(
-        CommandContext context, QuickApproveSettings settings, JellyfinApiClient client, CancellationToken cancellationToken)
-    {
-        try
-        {
-            var result = await client.QuickConnect.Authorize.PostAsync(cfg =>
-            {
-                cfg.QueryParameters.Code = settings.Code;
-            });
-
-            if (result == true)
-            {
-                AnsiConsole.MarkupLine($"[green]Quick Connect code '[white]{settings.Code}[/]' approved.[/]");
-                return 0;
-            }
-
-            AnsiConsole.MarkupLine("[red]Authorization was not confirmed by the server.[/]");
-            return 1;
-        }
-        catch (Exception ex)
-        {
-            AnsiConsole.MarkupLine($"[red]Failed to approve Quick Connect code:[/] {ex.Message}");
-            return 1;
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Quick Connect Status -- check if Quick Connect is enabled
-// ---------------------------------------------------------------------------
-
-public sealed class QuickStatusCommand : ApiCommand<GlobalSettings>
-{
-    public QuickStatusCommand(ApiClientFactory clientFactory, CredentialStore credentialStore)
-        : base(clientFactory, credentialStore)
-    {
-    }
-
-    protected override async Task<int> ExecuteAsync(
-        CommandContext context, GlobalSettings settings, JellyfinApiClient client, CancellationToken cancellationToken)
-    {
-        var enabled = await client.QuickConnect.Enabled.GetAsync();
-
-        if (settings.Json)
-        {
-            OutputHelper.WriteJson(new { enabled });
-            return 0;
-        }
-
-        if (enabled == true)
-        {
-            AnsiConsole.MarkupLine("[green]Quick Connect is enabled.[/]");
-        }
-        else
-        {
-            AnsiConsole.MarkupLine("[yellow]Quick Connect is disabled.[/]");
-        }
 
         return 0;
     }
