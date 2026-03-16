@@ -60,14 +60,17 @@ public sealed class LoginCommand : AsyncCommand<LoginSettings>
         try
         {
             var info = await client.System.Info.GetAsync();
-            _credentialStore.Save(new StoredCredentials
+            var profileName = ResolveProfileName(settings);
+
+            _credentialStore.SaveProfile(profileName, new StoredCredentials
             {
                 Server = settings.Server!,
                 ApiKey = settings.ApiKey!,
             });
 
-            AnsiConsole.MarkupLine("[green]API key saved successfully.[/]");
+            AnsiConsole.MarkupLine($"[green]API key saved to profile '{Markup.Escape(profileName)}'.[/]");
             var table = OutputHelper.CreateTable("Field", "Value");
+            table.AddRow("Profile", profileName);
             table.AddRow("Server", settings.Server!);
             table.AddRow("Server Name", info?.ServerName ?? "(unknown)");
             table.AddRow("Auth", "API Key");
@@ -116,22 +119,45 @@ public sealed class LoginCommand : AsyncCommand<LoginSettings>
             return 1;
         }
 
-        _credentialStore.Save(new StoredCredentials
+        var profileName = ResolveProfileName(settings);
+
+        _credentialStore.SaveProfile(profileName, new StoredCredentials
         {
             Server = settings.Server!,
             Token = result.AccessToken,
+            Username = settings.Username ?? string.Empty,
+            Password = password,
             UserId = result.User.Id?.ToString() ?? string.Empty,
             UserName = result.User.Name ?? string.Empty,
         });
 
-        AnsiConsole.MarkupLine("[green]Logged in successfully.[/]");
+        AnsiConsole.MarkupLine($"[green]Logged in successfully. Profile '{Markup.Escape(profileName)}' saved.[/]");
 
         var table = OutputHelper.CreateTable("Field", "Value");
+        table.AddRow("Profile", profileName);
         table.AddRow("Server", settings.Server!);
         table.AddRow("User", result.User.Name ?? "(unknown)");
         table.AddRow("User ID", result.User.Id?.ToString() ?? "(unknown)");
         OutputHelper.WriteTable(table);
 
         return 0;
+    }
+
+    private string ResolveProfileName(LoginSettings settings)
+    {
+        // Explicit --profile wins
+        if (!string.IsNullOrWhiteSpace(settings.Profile))
+            return settings.Profile;
+
+        // Auto-generate from hostname
+        try
+        {
+            var uri = new Uri(settings.Server!);
+            return uri.Host;
+        }
+        catch
+        {
+            return "default";
+        }
     }
 }

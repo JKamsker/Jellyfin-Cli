@@ -12,6 +12,7 @@ public abstract class ApiCommand<TSettings> : AsyncCommand<TSettings> where TSet
     private string? _resolvedServer;
     private string? _resolvedToken;
     private string? _resolvedApiKey;
+    private StoredCredentials? _resolvedProfile;
 
     protected ApiCommand(ApiClientFactory clientFactory, CredentialStore credentialStore)
     {
@@ -41,7 +42,7 @@ public abstract class ApiCommand<TSettings> : AsyncCommand<TSettings> where TSet
         // Resolve --user me to actual user ID
         if (string.Equals(settings.User, "me", StringComparison.OrdinalIgnoreCase))
         {
-            var stored = _credentialStore.Load();
+            var stored = _resolvedProfile ?? _credentialStore.Load();
             if (!string.IsNullOrEmpty(stored?.UserId))
             {
                 settings.User = stored.UserId;
@@ -128,19 +129,34 @@ public abstract class ApiCommand<TSettings> : AsyncCommand<TSettings> where TSet
 
     private (string? server, string? token, string? apiKey) ResolveCredentials(GlobalSettings settings)
     {
+        // 1. CLI flags (highest priority)
         var server = settings.Server;
         var token = settings.Token;
         var apiKey = settings.ApiKey;
 
+        // 2. Environment variables
+        if (string.IsNullOrEmpty(server))
+            server = Environment.GetEnvironmentVariable("JF_HOST");
+        if (string.IsNullOrEmpty(token))
+            token = Environment.GetEnvironmentVariable("JF_TOKEN");
+        if (string.IsNullOrEmpty(apiKey))
+            apiKey = Environment.GetEnvironmentVariable("JF_API_KEY");
+
+        // 3. Profile resolution (fill in anything still missing)
         if (string.IsNullOrEmpty(server) || (string.IsNullOrEmpty(token) && string.IsNullOrEmpty(apiKey)))
         {
-            var stored = _credentialStore.Load();
-            if (stored is not null)
+            var profileName = settings.Profile ?? Environment.GetEnvironmentVariable("JF_PROFILE");
+            var (_, profile) = _credentialStore.Resolve(profileName, server);
+            _resolvedProfile = profile;
+
+            if (profile is not null)
             {
-                server ??= stored.Server;
-                token ??= stored.Token;
-                if (string.IsNullOrEmpty(token))
-                    apiKey ??= stored.ApiKey;
+                if (string.IsNullOrEmpty(server))
+                    server = profile.Server;
+                if (string.IsNullOrEmpty(token) && !string.IsNullOrEmpty(profile.Token))
+                    token = profile.Token;
+                if (string.IsNullOrEmpty(token) && string.IsNullOrEmpty(apiKey) && !string.IsNullOrEmpty(profile.ApiKey))
+                    apiKey = profile.ApiKey;
             }
         }
 

@@ -85,7 +85,22 @@ public sealed class QuickLoginCommand : ApiCommand<GlobalSettings>
         var stored = _credentialStore.Load();
         var serverUrl = settings.Server ?? stored?.Server ?? string.Empty;
 
-        _credentialStore.Save(new StoredCredentials
+        // Determine profile name
+        var profileName = settings.Profile;
+        if (string.IsNullOrEmpty(profileName))
+        {
+            try
+            {
+                var uri = new Uri(serverUrl);
+                profileName = uri.Host;
+            }
+            catch
+            {
+                profileName = "default";
+            }
+        }
+
+        _credentialStore.SaveProfile(profileName, new StoredCredentials
         {
             Server = serverUrl,
             Token = authResult.AccessToken,
@@ -93,9 +108,10 @@ public sealed class QuickLoginCommand : ApiCommand<GlobalSettings>
             UserName = authResult.User.Name ?? string.Empty,
         });
 
-        AnsiConsole.MarkupLine("[green]Logged in via Quick Connect.[/]");
+        AnsiConsole.MarkupLine($"[green]Logged in via Quick Connect. Profile '{Markup.Escape(profileName)}' saved.[/]");
 
         var table = OutputHelper.CreateTable("Field", "Value");
+        table.AddRow("Profile", profileName);
         table.AddRow("Server", serverUrl);
         table.AddRow("User", authResult.User.Name ?? "(unknown)");
         table.AddRow("User ID", authResult.User.Id?.ToString() ?? "(unknown)");

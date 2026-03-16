@@ -9,6 +9,10 @@ public class GlobalSettings : CommandSettings
     [Description("Jellyfin base URL")]
     public string? Server { get; set; }
 
+    [CommandOption("--profile <NAME>")]
+    [Description("Use a named profile for host and credentials")]
+    public string? Profile { get; set; }
+
     [CommandOption("--token <TOKEN>")]
     [Description("Access token")]
     public string? Token { get; set; }

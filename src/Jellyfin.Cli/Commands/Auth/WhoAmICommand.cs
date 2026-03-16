@@ -27,8 +27,9 @@ public sealed class WhoAmICommand : ApiCommand<GlobalSettings>
             return 1;
         }
 
-        var stored = _credentialStore.Load();
-        var serverUrl = settings.Server ?? stored?.Server ?? "(unknown)";
+        var profileName = settings.Profile ?? _credentialStore.GetActiveProfileName();
+        var (_, resolved) = _credentialStore.Resolve(profileName, settings.Server);
+        var serverUrl = settings.Server ?? resolved?.Server ?? "(unknown)";
 
         if (settings.Json)
         {
@@ -38,6 +39,7 @@ public sealed class WhoAmICommand : ApiCommand<GlobalSettings>
                 id = user.Id,
                 isAdministrator = user.Policy?.IsAdministrator,
                 server = serverUrl,
+                profile = profileName,
             });
             return 0;
         }
@@ -47,6 +49,8 @@ public sealed class WhoAmICommand : ApiCommand<GlobalSettings>
         table.AddRow("ID", user.Id?.ToString() ?? "(unknown)");
         table.AddRow("Administrator", user.Policy?.IsAdministrator == true ? "Yes" : "No");
         table.AddRow("Server", serverUrl);
+        if (!string.IsNullOrEmpty(profileName))
+            table.AddRow("Profile", profileName);
         OutputHelper.WriteTable(table);
 
         return 0;

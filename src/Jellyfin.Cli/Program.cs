@@ -54,6 +54,15 @@ app.Configure(config =>
             quick.AddCommand<QuickApproveCommand>("approve").WithDescription("Approve a pending Quick Connect code");
             quick.AddCommand<QuickStatusCommand>("status").WithDescription("Check whether Quick Connect is enabled");
         });
+        auth.AddBranch("profiles", profiles =>
+        {
+            profiles.SetDescription("Manage saved server profiles");
+            profiles.SetDefaultCommand<ProfilesListCommand>();
+            profiles.AddCommand<ProfilesListCommand>("list").WithDescription("List all saved profiles");
+            profiles.AddCommand<ProfilesUseCommand>("use").WithDescription("Switch the active profile");
+            profiles.AddCommand<ProfilesShowCommand>("show").WithDescription("Show details of a profile");
+            profiles.AddCommand<ProfilesDeleteCommand>("delete").WithDescription("Delete a saved profile");
+        });
         auth.AddBranch("keys", keys =>
         {
             keys.SetDescription("Manage API keys [[admin]]");
