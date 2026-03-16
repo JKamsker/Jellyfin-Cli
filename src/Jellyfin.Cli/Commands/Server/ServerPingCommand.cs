@@ -30,9 +30,16 @@ public sealed class ServerPingCommand : AsyncCommand<ServerPingSettings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, ServerPingSettings settings, CancellationToken cancellationToken)
     {
-        var server = settings.Server;
-        if (string.IsNullOrEmpty(server))
-            server = _credentialStore.Load()?.Server;
+        _credentialStore.ConfigPathOverride = settings.ConfigPath
+            ?? Environment.GetEnvironmentVariable("JF_CONFIG");
+
+        var serverInput = settings.Server ?? Environment.GetEnvironmentVariable("JF_SERVER");
+        var resolved = _credentialStore.Resolve(serverInput, null);
+        var server = resolved?.BaseUrl;
+
+        // Bare hostname fallback
+        if (server is null && !string.IsNullOrEmpty(serverInput))
+            server = serverInput.Contains("://") ? serverInput : $"https://{serverInput}";
 
         if (string.IsNullOrEmpty(server))
         {

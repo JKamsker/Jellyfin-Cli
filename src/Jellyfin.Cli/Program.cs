@@ -54,6 +54,33 @@ app.Configure(config =>
             quick.AddCommand<QuickApproveCommand>("approve").WithDescription("Approve a pending Quick Connect code");
             quick.AddCommand<QuickStatusCommand>("status").WithDescription("Check whether Quick Connect is enabled");
         });
+        auth.AddBranch("profiles", profiles =>
+        {
+            profiles.SetDescription("Manage saved server profiles");
+            profiles.SetDefaultCommand<ProfilesListCommand>();
+            profiles.AddCommand<ProfilesListCommand>("list").WithDescription("List all hosts and profiles");
+            profiles.AddCommand<ProfilesShowCommand>("show").WithDescription("Show the resolved profile for the current context");
+            profiles.AddCommand<ProfilesUseCommand>("use").WithDescription("Set the default profile for a host");
+            profiles.AddCommand<ProfilesRenameCommand>("rename").WithDescription("Rename a profile");
+            profiles.AddCommand<ProfilesDeleteCommand>("delete").WithDescription("Delete a profile");
+        });
+        auth.AddBranch("host", host =>
+        {
+            host.SetDescription("Manage configured hosts");
+            host.SetDefaultCommand<HostListCommand>();
+            host.AddCommand<HostListCommand>("list").WithDescription("List all configured hosts");
+            host.AddCommand<HostUseCommand>("use").WithDescription("Set the default host");
+            host.AddCommand<HostRenameCommand>("rename").WithDescription("Rename a host key");
+            host.AddCommand<HostDeleteCommand>("delete").WithDescription("Remove a host and all its profiles");
+            host.AddBranch("alias", alias =>
+            {
+                alias.SetDescription("Manage host aliases");
+                alias.SetDefaultCommand<HostAliasListCommand>();
+                alias.AddCommand<HostAliasListCommand>("list").WithDescription("List aliases");
+                alias.AddCommand<HostAliasAddCommand>("add").WithDescription("Add an alias to a host");
+                alias.AddCommand<HostAliasRemoveCommand>("remove").WithDescription("Remove an alias from a host");
+            });
+        });
         auth.AddBranch("keys", keys =>
         {
             keys.SetDescription("Manage API keys [[admin]]");
