@@ -8,12 +8,9 @@ namespace Jellyfin.Cli.Commands.Auth;
 
 public sealed class WhoAmICommand : ApiCommand<GlobalSettings>
 {
-    private readonly CredentialStore _credentialStore;
-
     public WhoAmICommand(ApiClientFactory clientFactory, CredentialStore credentialStore)
         : base(clientFactory, credentialStore)
     {
-        _credentialStore = credentialStore;
     }
 
     protected override async Task<int> ExecuteAsync(
@@ -27,8 +24,7 @@ public sealed class WhoAmICommand : ApiCommand<GlobalSettings>
             return 1;
         }
 
-        var stored = _credentialStore.Load();
-        var serverUrl = settings.Server ?? stored?.Server ?? "(unknown)";
+        var resolved = ResolvedContext;
 
         if (settings.Json)
         {
@@ -37,7 +33,9 @@ public sealed class WhoAmICommand : ApiCommand<GlobalSettings>
                 name = user.Name,
                 id = user.Id,
                 isAdministrator = user.Policy?.IsAdministrator,
-                server = serverUrl,
+                server = resolved?.BaseUrl ?? ResolvedServer,
+                host = resolved?.Hostname,
+                profile = resolved?.ProfileName,
             });
             return 0;
         }
@@ -46,7 +44,12 @@ public sealed class WhoAmICommand : ApiCommand<GlobalSettings>
         table.AddRow("Name", user.Name ?? "(unknown)");
         table.AddRow("ID", user.Id?.ToString() ?? "(unknown)");
         table.AddRow("Administrator", user.Policy?.IsAdministrator == true ? "Yes" : "No");
-        table.AddRow("Server", serverUrl);
+        table.AddRow("Server", resolved?.BaseUrl ?? ResolvedServer);
+        if (resolved is not null)
+        {
+            table.AddRow("Host", resolved.Hostname);
+            table.AddRow("Profile", resolved.ProfileName);
+        }
         OutputHelper.WriteTable(table);
 
         return 0;

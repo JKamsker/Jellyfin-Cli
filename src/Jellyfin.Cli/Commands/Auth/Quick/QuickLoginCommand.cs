@@ -1,0 +1,111 @@
+using Jellyfin.Cli.Api.Generated;
+using Jellyfin.Cli.Api.Generated.Models;
+using Jellyfin.Cli.Common;
+
+using Spectre.Console;
+using Spectre.Console.Cli;
+
+namespace Jellyfin.Cli.Commands.Auth.Quick;
+
+public sealed class QuickLoginCommand : ApiCommand<GlobalSettings>
+{
+    private readonly CredentialStore _credentialStore;
+
+    public QuickLoginCommand(ApiClientFactory clientFactory, CredentialStore credentialStore)
+        : base(clientFactory, credentialStore)
+    {
+        _credentialStore = credentialStore;
+    }
+
+    protected override async Task<int> ExecuteAsync(
+        CommandContext context, GlobalSettings settings, JellyfinApiClient client, CancellationToken cancellationToken)
+    {
+        // Check if Quick Connect is enabled
+        var enabled = await client.QuickConnect.Enabled.GetAsync(cancellationToken: cancellationToken);
+        if (enabled != true)
+        {
+            AnsiConsole.MarkupLine("[red]Quick Connect is not enabled on this server.[/]");
+            return 1;
+        }
+
+        // Initiate a new Quick Connect request
+        var initResult = await client.QuickConnect.Initiate.PostAsync(cancellationToken: cancellationToken);
+        if (initResult?.Code is null || initResult.Secret is null)
+        {
+            AnsiConsole.MarkupLine("[red]Failed to initiate Quick Connect.[/]");
+            return 1;
+        }
+
+        AnsiConsole.MarkupLine($"[bold]Quick Connect code:[/] [cyan]{initResult.Code}[/]");
+        AnsiConsole.MarkupLine("Enter the code above in another Jellyfin client or the web UI to authorize this login.");
+
+        // Poll for authorization
+        var authorized = await AnsiConsole.Status()
+            .Spinner(Spinner.Known.Dots)
+            .StartAsync("Waiting for authorization...", async ctx =>
+            {
+                for (var i = 0; i < 120; i++) // up to ~2 minutes
+                {
+                    await Task.Delay(1000, cancellationToken);
+
+                    var status = await client.QuickConnect.Connect.GetAsync(cfg =>
+                    {
+                        cfg.QueryParameters.Secret = initResult.Secret;
+                    }, cancellationToken: cancellationToken);
+
+                    if (status?.Authenticated == true)
+                        return true;
+                }
+
+                return false;
+            });
+
+        if (!authorized)
+        {
+            AnsiConsole.MarkupLine("[red]Quick Connect authorization timed out.[/]");
+            return 1;
+        }
+
+        // Authenticate with the secret
+        var authResult = await client.Users.AuthenticateWithQuickConnect.PostAsync(
+            new QuickConnectDto { Secret = initResult.Secret },
+            cancellationToken: cancellationToken);
+
+        if (authResult?.AccessToken is null || authResult.User is null)
+        {
+            AnsiConsole.MarkupLine("[red]Quick Connect authentication failed.[/]");
+            return 1;
+        }
+
+        var serverUrl = ResolvedServer;
+        var hostname = CredentialStore.ExtractHostname(serverUrl);
+        var profileName = settings.Profile ?? "default";
+
+        if (string.IsNullOrEmpty(hostname))
+        {
+            AnsiConsole.MarkupLine("[red]Error:[/] Could not determine hostname from server URL.");
+            return 1;
+        }
+
+        var profile = new ProfileConfig
+        {
+            Token = authResult.AccessToken,
+            Username = authResult.User.Name,
+            UserId = authResult.User.Id?.ToString(),
+        };
+
+        _credentialStore.SaveProfile(hostname, profileName, profile, serverUrl);
+
+        AnsiConsole.MarkupLine("[green]Logged in via Quick Connect.[/]");
+
+        var table = OutputHelper.CreateTable("Field", "Value");
+        table.AddRow("Host", hostname);
+        table.AddRow("Profile", profileName);
+        table.AddRow("Server", serverUrl);
+        table.AddRow("User", authResult.User.Name ?? "(unknown)");
+        table.AddRow("User ID", authResult.User.Id?.ToString() ?? "(unknown)");
+        OutputHelper.WriteTable(table);
+
+        return 0;
+    }
+}

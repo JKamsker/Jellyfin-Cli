@@ -44,11 +44,11 @@ public sealed class LoginCommand : AsyncCommand<LoginSettings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, LoginSettings settings, CancellationToken cancellationToken)
     {
-        // API key login: just store and verify
+        _credentialStore.ConfigPathOverride = settings.ConfigPath
+            ?? Environment.GetEnvironmentVariable("JF_CONFIG");
+
         if (!string.IsNullOrWhiteSpace(settings.ApiKey))
-        {
             return await LoginWithApiKey(settings);
-        }
 
         return await LoginWithPassword(settings);
     }
@@ -60,14 +60,16 @@ public sealed class LoginCommand : AsyncCommand<LoginSettings>
         try
         {
             var info = await client.System.Info.GetAsync();
-            _credentialStore.Save(new StoredCredentials
-            {
-                Server = settings.Server!,
-                ApiKey = settings.ApiKey!,
-            });
+            var hostname = CredentialStore.ExtractHostname(settings.Server!);
+            var profileName = settings.Profile ?? "default";
 
-            AnsiConsole.MarkupLine("[green]API key saved successfully.[/]");
+            var profile = new ProfileConfig { ApiKey = settings.ApiKey };
+            _credentialStore.SaveProfile(hostname, profileName, profile, settings.Server!);
+
+            AnsiConsole.MarkupLine($"[green]API key saved.[/]");
             var table = OutputHelper.CreateTable("Field", "Value");
+            table.AddRow("Host", hostname);
+            table.AddRow("Profile", profileName);
             table.AddRow("Server", settings.Server!);
             table.AddRow("Server Name", info?.ServerName ?? "(unknown)");
             table.AddRow("Auth", "API Key");
@@ -116,17 +118,23 @@ public sealed class LoginCommand : AsyncCommand<LoginSettings>
             return 1;
         }
 
-        _credentialStore.Save(new StoredCredentials
+        var hostname = CredentialStore.ExtractHostname(settings.Server!);
+        var profileName = settings.Profile ?? "default";
+
+        var profile = new ProfileConfig
         {
-            Server = settings.Server!,
             Token = result.AccessToken,
-            UserId = result.User.Id?.ToString() ?? string.Empty,
-            UserName = result.User.Name ?? string.Empty,
-        });
+            Username = result.User.Name ?? settings.Username,
+            UserId = result.User.Id?.ToString(),
+        };
+
+        _credentialStore.SaveProfile(hostname, profileName, profile, settings.Server!);
 
         AnsiConsole.MarkupLine("[green]Logged in successfully.[/]");
 
         var table = OutputHelper.CreateTable("Field", "Value");
+        table.AddRow("Host", hostname);
+        table.AddRow("Profile", profileName);
         table.AddRow("Server", settings.Server!);
         table.AddRow("User", result.User.Name ?? "(unknown)");
         table.AddRow("User ID", result.User.Id?.ToString() ?? "(unknown)");

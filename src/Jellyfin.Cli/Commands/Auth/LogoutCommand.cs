@@ -28,8 +28,18 @@ public sealed class LogoutCommand : ApiCommand<GlobalSettings>
             AnsiConsole.MarkupLine($"[yellow]Warning:[/] Server logout failed: {ex.Message}");
         }
 
-        _credentialStore.Delete();
-        AnsiConsole.MarkupLine("[green]Logged out and credentials removed.[/]");
+        // Use the context resolved by the base class (matches the host/profile used for the API call)
+        var resolved = ResolvedContext;
+
+        if (resolved is not null)
+        {
+            _credentialStore.DeleteProfile(resolved.Hostname, resolved.ProfileName);
+            AnsiConsole.MarkupLine($"[green]Logged out and removed profile '{Markup.Escape(resolved.ProfileName)}' from host '{Markup.Escape(resolved.Hostname)}'.[/]");
+        }
+        else
+        {
+            AnsiConsole.MarkupLine("[yellow]No profile to remove.[/]");
+        }
 
         return 0;
     }
