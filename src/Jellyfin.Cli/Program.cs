@@ -376,6 +376,8 @@ app.Configure(config =>
         raw.AddCommand<RawPutCommand>("put").WithDescription("PUT to an endpoint");
         raw.AddCommand<RawDeleteCommand>("delete").WithDescription("DELETE an endpoint");
     });
+
+    config.AddDocumentationExamples();
 });
 
 return await app.RunAsync(args);
