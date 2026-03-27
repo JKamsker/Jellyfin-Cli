@@ -15,15 +15,27 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  docs:
+  generate:
     uses: ./.github/workflows/inspectra-generate.yml
-    permissions:
-      pages: write
-      id-token: write
     with:
       dotnet-tool: JellyfinCli
       cli-name: jf
-      with-xmldoc: true
-      deploy-pages: true
       dotnet-version: '10.0.x'
       dotnet-quality: 'preview'
+
+  deploy:
+    needs: generate
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: inspectra-docs
+          path: _site
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - uses: actions/deploy-pages@v4
+        id: deploy

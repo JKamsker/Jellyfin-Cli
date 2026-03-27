@@ -13,15 +13,19 @@ inputs:
     required: false
     default: 'exec'
 
+  format:
+    description: >
+      Output format.
+        html               - interactive SPA bundle
+        markdown            - tree layout (one file per command)
+        markdown-monolith   - single Markdown file
+    required: false
+    default: 'html'
+
   # ── exec mode ──────────────────────────────────────────────────────
   cli-name:
     description: 'CLI executable name or path (exec mode)'
     required: false
-
-  with-xmldoc:
-    description: 'Also run the CLI xmldoc export for richer descriptions (exec mode)'
-    required: false
-    default: 'false'
 
   opencli-args:
     description: 'Override the OpenCLI export arguments (exec mode, default: cli opencli)'
@@ -46,7 +50,7 @@ inputs:
 
   # ── common ─────────────────────────────────────────────────────────
   output-dir:
-    description: 'Directory where the HTML bundle is written'
+    description: 'Directory where the rendered output is written'
     required: false
     default: 'inspectra-output'
 
@@ -69,7 +73,7 @@ inputs:
 
 outputs:
   output-dir:
-    description: 'Path to the rendered HTML bundle directory'
+    description: 'Path to the rendered output directory'
     value: ${{ inputs.output-dir }}
 
 runs:
@@ -94,12 +98,14 @@ runs:
         fi
         inspectra --version
 
-    - name: Render (exec mode)
-      if: inputs.mode == 'exec'
+    - name: Render
       shell: bash
       env:
+        MODE: ${{ inputs.mode }}
+        FORMAT: ${{ inputs.format }}
         CLI_NAME: ${{ inputs.cli-name }}
-        WITH_XMLDOC: ${{ inputs.with-xmldoc }}
+        OPENCLI_JSON: ${{ inputs.opencli-json }}
+        XMLDOC: ${{ inputs.xmldoc }}
         OPENCLI_ARGS: ${{ inputs.opencli-args }}
         XMLDOC_ARGS: ${{ inputs.xmldoc-args }}
         TIMEOUT: ${{ inputs.timeout }}
@@ -107,52 +113,63 @@ runs:
         EXTRA_ARGS: ${{ inputs.extra-args }}
       run: |
         set -euo pipefail
-        args=(render exec html "$CLI_NAME" --overwrite)
 
-        if [ "$WITH_XMLDOC" = "true" ]; then
-          args+=(--with-xmldoc)
+        # ── determine subcommand + format flags ──
+        case "$FORMAT" in
+          html)
+            subcmd="html"
+            format_args=(--out-dir "$OUTPUT_DIR")
+            ;;
+          markdown)
+            subcmd="markdown"
+            format_args=(--layout tree --out-dir "$OUTPUT_DIR")
+            ;;
+          markdown-monolith)
+            subcmd="markdown"
+            mkdir -p "$OUTPUT_DIR"
+            format_args=(--layout single --out "$OUTPUT_DIR/README.md")
+            ;;
+          *)
+            echo "::error::Unknown format: $FORMAT"
+            exit 1
+            ;;
+        esac
+
+        # ── build command based on mode ──
+        if [ "$MODE" = "exec" ]; then
+          args=(render exec "$subcmd" "$CLI_NAME" --overwrite)
+
+          # auto-detect xmldoc support
+          xmldoc_probe=( ${XMLDOC_ARGS:-cli xmldoc} )
+          if "$CLI_NAME" "${xmldoc_probe[@]}" > /dev/null 2>&1; then
+            echo "xmldoc supported — enriching output"
+            args+=(--with-xmldoc)
+            if [ -n "$XMLDOC_ARGS" ]; then
+              for a in $XMLDOC_ARGS; do args+=(--xmldoc-arg "$a"); done
+            fi
+          else
+            echo "xmldoc not available — rendering without enrichment"
+          fi
+
+          if [ -n "$OPENCLI_ARGS" ]; then
+            for a in $OPENCLI_ARGS; do args+=(--opencli-arg "$a"); done
+          fi
+
+          if [ -n "$TIMEOUT" ]; then
+            args+=(--timeout "$TIMEOUT")
+          fi
+
+        elif [ "$MODE" = "file" ]; then
+          args=(render file "$subcmd" "$OPENCLI_JSON" --overwrite)
+          if [ -n "$XMLDOC" ]; then
+            args+=(--xmldoc "$XMLDOC")
+          fi
+        else
+          echo "::error::Unknown mode: $MODE"
+          exit 1
         fi
 
-        if [ -n "$OPENCLI_ARGS" ]; then
-          for a in $OPENCLI_ARGS; do args+=(--opencli-arg "$a"); done
-        fi
-
-        if [ -n "$XMLDOC_ARGS" ]; then
-          for a in $XMLDOC_ARGS; do args+=(--xmldoc-arg "$a"); done
-        fi
-
-        if [ -n "$TIMEOUT" ]; then
-          args+=(--timeout "$TIMEOUT")
-        fi
-
-        args+=(--out-dir "$OUTPUT_DIR")
-
-        if [ -n "${EXTRA_ARGS:-}" ]; then
-          # shellcheck disable=SC2206
-          args+=($EXTRA_ARGS)
-        fi
-
-        echo "::group::inspectra ${args[*]}"
-        inspectra "${args[@]}"
-        echo "::endgroup::"
-
-    - name: Render (file mode)
-      if: inputs.mode == 'file'
-      shell: bash
-      env:
-        OPENCLI_JSON: ${{ inputs.opencli-json }}
-        XMLDOC: ${{ inputs.xmldoc }}
-        OUTPUT_DIR: ${{ inputs.output-dir }}
-        EXTRA_ARGS: ${{ inputs.extra-args }}
-      run: |
-        set -euo pipefail
-        args=(render file html "$OPENCLI_JSON" --overwrite)
-
-        if [ -n "$XMLDOC" ]; then
-          args+=(--xmldoc "$XMLDOC")
-        fi
-
-        args+=(--out-dir "$OUTPUT_DIR")
+        args+=("${format_args[@]}")
 
         if [ -n "${EXTRA_ARGS:-}" ]; then
           # shellcheck disable=SC2206
@@ -166,9 +183,22 @@ runs:
     - name: Verify output
       shell: bash
       env:
+        FORMAT: ${{ inputs.format }}
         OUTPUT_DIR: ${{ inputs.output-dir }}
       run: |
         set -euo pipefail
-        test -f "$OUTPUT_DIR/index.html"
-        grep -q './assets/' "$OUTPUT_DIR/index.html"
-        echo "InSpectra bundle verified at $OUTPUT_DIR"
+        case "$FORMAT" in
+          html)
+            test -f "$OUTPUT_DIR/index.html"
+            grep -q './assets/' "$OUTPUT_DIR/index.html"
+            ;;
+          markdown)
+            test -d "$OUTPUT_DIR"
+            found=$(find "$OUTPUT_DIR" -name '*.md' | head -1)
+            test -n "$found"
+            ;;
+          markdown-monolith)
+            test -f "$OUTPUT_DIR/README.md"
+            ;;
+        esac
+        echo "InSpectra output verified ($FORMAT) at $OUTPUT_DIR"
