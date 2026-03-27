@@ -1,0 +1,198 @@
+# ─────────────────────────────────────────────────────────────────────
+# InSpectra Generate — reusable workflow
+# ─────────────────────────────────────────────────────────────────────
+#
+# Generates an interactive InSpectraUI HTML bundle for your CLI and
+# optionally deploys it to GitHub Pages or uploads it as an artifact.
+#
+# ── Usage ─────────────────────────────────────────────────────────────
+#
+#   jobs:
+#     docs:
+#       uses: ./.github/workflows/inspectra-generate.yml
+#       permissions:
+#         pages: write
+#         id-token: write
+#       with:
+#         dotnet-tool: JellyfinCli
+#         cli-name: jf
+#         with-xmldoc: true
+#         deploy-pages: true
+#
+# ─────────────────────────────────────────────────────────────────────
+
+name: InSpectra Generate
+
+on:
+  workflow_call:
+    inputs:
+      # ── render mode ──────────────────────────────────────────────
+      mode:
+        type: string
+        default: 'exec'
+        description: 'exec (invoke a live CLI) or file (from saved opencli.json)'
+
+      # ── target CLI (exec mode) ──────────────────────────────────
+      cli-name:
+        type: string
+        description: 'CLI executable name or path'
+
+      dotnet-tool:
+        type: string
+        description: 'NuGet package to `dotnet tool install -g` as the target CLI'
+
+      dotnet-tool-version:
+        type: string
+        description: 'Version constraint for the dotnet tool'
+
+      setup-command:
+        type: string
+        description: 'Custom shell command to make the CLI available on PATH'
+
+      with-xmldoc:
+        type: boolean
+        default: false
+        description: 'Also export XML documentation for richer descriptions'
+
+      opencli-args:
+        type: string
+        description: 'Override OpenCLI export arguments (default: cli opencli)'
+
+      xmldoc-args:
+        type: string
+        description: 'Override xmldoc export arguments (default: cli xmldoc)'
+
+      timeout:
+        type: string
+        description: 'Timeout in seconds for each CLI export command'
+
+      # ── file mode ────────────────────────────────────────────────
+      opencli-json:
+        type: string
+        description: 'Path to opencli.json (file mode)'
+
+      xmldoc:
+        type: string
+        description: 'Path to xmldoc.xml (file mode)'
+
+      # ── inspectra tool ───────────────────────────────────────────
+      inspectra-version:
+        type: string
+        description: 'InSpectra.Gen NuGet tool version (empty = latest)'
+
+      dotnet-version:
+        type: string
+        default: '10.0.x'
+        description: '.NET SDK version'
+
+      dotnet-quality:
+        type: string
+        description: '.NET SDK quality channel (empty = stable, or preview)'
+
+      extra-args:
+        type: string
+        description: 'Additional flags forwarded to the inspectra CLI'
+
+      # ── output ───────────────────────────────────────────────────
+      deploy-pages:
+        type: boolean
+        default: false
+        description: 'Deploy the HTML bundle to GitHub Pages'
+
+      upload-artifact:
+        type: boolean
+        default: true
+        description: 'Upload the HTML bundle as a workflow artifact'
+
+      artifact-name:
+        type: string
+        default: 'inspectra-docs'
+        description: 'Name of the uploaded artifact'
+
+# Pages deployment needs these; callers must also grant them.
+permissions:
+  pages: write
+  id-token: write
+
+jobs:
+  # ── Generate the InSpectraUI bundle ─────────────────────────────
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout caller repository
+        uses: actions/checkout@v4
+
+      # ── always set up .NET (needed for dotnet-tool, setup-command, and inspectra) ──
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ inputs.dotnet-version }}
+          dotnet-quality: ${{ inputs.dotnet-quality }}
+
+      # ── optional: install target CLI from NuGet ─────────────────
+      - name: Install target CLI (.NET tool)
+        if: inputs.dotnet-tool != ''
+        shell: bash
+        env:
+          TOOL_NAME: ${{ inputs.dotnet-tool }}
+          TOOL_VERSION: ${{ inputs.dotnet-tool-version }}
+        run: |
+          set -euo pipefail
+          args=(dotnet tool install -g "$TOOL_NAME")
+          if [ -n "$TOOL_VERSION" ]; then
+            args+=(--version "$TOOL_VERSION")
+          fi
+          "${args[@]}"
+
+      # ── optional: custom setup ──────────────────────────────────
+      - name: Run custom setup command
+        if: inputs.setup-command != ''
+        shell: bash
+        run: ${{ inputs.setup-command }}
+
+      # ── render ──────────────────────────────────────────────────
+      - name: Render InSpectraUI
+        uses: ./.github/actions/render
+        with:
+          mode: ${{ inputs.mode }}
+          cli-name: ${{ inputs.cli-name }}
+          with-xmldoc: ${{ inputs.with-xmldoc && 'true' || 'false' }}
+          opencli-args: ${{ inputs.opencli-args }}
+          xmldoc-args: ${{ inputs.xmldoc-args }}
+          timeout: ${{ inputs.timeout }}
+          opencli-json: ${{ inputs.opencli-json }}
+          xmldoc: ${{ inputs.xmldoc }}
+          output-dir: _inspectra-site
+          extra-args: ${{ inputs.extra-args }}
+          inspectra-version: ${{ inputs.inspectra-version }}
+          dotnet-version: ${{ inputs.dotnet-version }}
+          dotnet-quality: ${{ inputs.dotnet-quality }}
+
+      # ── upload as regular artifact ──────────────────────────────
+      - name: Upload artifact
+        if: inputs.upload-artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: _inspectra-site
+
+      # ── upload as pages artifact ────────────────────────────────
+      - name: Upload Pages artifact
+        if: inputs.deploy-pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _inspectra-site
+
+  # ── Deploy to GitHub Pages ──────────────────────────────────────
+  deploy-pages:
+    if: inputs.deploy-pages
+    needs: generate
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,174 @@
+name: 'InSpectra Render'
+description: 'Generate interactive CLI documentation with InSpectra'
+branding:
+  icon: 'book-open'
+  color: 'blue'
+
+inputs:
+  mode:
+    description: >
+      Render mode.
+        exec  - invoke a live CLI (requires cli-name)
+        file  - render from a saved opencli.json (requires opencli-json)
+    required: false
+    default: 'exec'
+
+  # ── exec mode ──────────────────────────────────────────────────────
+  cli-name:
+    description: 'CLI executable name or path (exec mode)'
+    required: false
+
+  with-xmldoc:
+    description: 'Also run the CLI xmldoc export for richer descriptions (exec mode)'
+    required: false
+    default: 'false'
+
+  opencli-args:
+    description: 'Override the OpenCLI export arguments (exec mode, default: cli opencli)'
+    required: false
+
+  xmldoc-args:
+    description: 'Override the xmldoc export arguments (exec mode, default: cli xmldoc)'
+    required: false
+
+  timeout:
+    description: 'Timeout in seconds for each export command (exec mode)'
+    required: false
+
+  # ── file mode ──────────────────────────────────────────────────────
+  opencli-json:
+    description: 'Path to opencli.json file (file mode)'
+    required: false
+
+  xmldoc:
+    description: 'Path to xmldoc.xml file (file mode)'
+    required: false
+
+  # ── common ─────────────────────────────────────────────────────────
+  output-dir:
+    description: 'Directory where the HTML bundle is written'
+    required: false
+    default: 'inspectra-output'
+
+  extra-args:
+    description: 'Additional flags forwarded to the inspectra CLI'
+    required: false
+
+  inspectra-version:
+    description: 'InSpectra.Gen NuGet tool version (empty = latest)'
+    required: false
+
+  dotnet-version:
+    description: '.NET SDK version to install'
+    required: false
+    default: '10.0.x'
+
+  dotnet-quality:
+    description: '.NET SDK quality channel (empty = stable, or preview)'
+    required: false
+
+outputs:
+  output-dir:
+    description: 'Path to the rendered HTML bundle directory'
+    value: ${{ inputs.output-dir }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ inputs.dotnet-version }}
+        dotnet-quality: ${{ inputs.dotnet-quality }}
+
+    - name: Install InSpectra
+      shell: bash
+      env:
+        INSPECTRA_VERSION: ${{ inputs.inspectra-version }}
+      run: |
+        set -euo pipefail
+        if [ -n "$INSPECTRA_VERSION" ]; then
+          dotnet tool install -g InSpectra.Gen --version "$INSPECTRA_VERSION"
+        else
+          dotnet tool install -g InSpectra.Gen
+        fi
+        inspectra --version
+
+    - name: Render (exec mode)
+      if: inputs.mode == 'exec'
+      shell: bash
+      env:
+        CLI_NAME: ${{ inputs.cli-name }}
+        WITH_XMLDOC: ${{ inputs.with-xmldoc }}
+        OPENCLI_ARGS: ${{ inputs.opencli-args }}
+        XMLDOC_ARGS: ${{ inputs.xmldoc-args }}
+        TIMEOUT: ${{ inputs.timeout }}
+        OUTPUT_DIR: ${{ inputs.output-dir }}
+        EXTRA_ARGS: ${{ inputs.extra-args }}
+      run: |
+        set -euo pipefail
+        args=(render exec html "$CLI_NAME" --overwrite)
+
+        if [ "$WITH_XMLDOC" = "true" ]; then
+          args+=(--with-xmldoc)
+        fi
+
+        if [ -n "$OPENCLI_ARGS" ]; then
+          for a in $OPENCLI_ARGS; do args+=(--opencli-arg "$a"); done
+        fi
+
+        if [ -n "$XMLDOC_ARGS" ]; then
+          for a in $XMLDOC_ARGS; do args+=(--xmldoc-arg "$a"); done
+        fi
+
+        if [ -n "$TIMEOUT" ]; then
+          args+=(--timeout "$TIMEOUT")
+        fi
+
+        args+=(--out-dir "$OUTPUT_DIR")
+
+        if [ -n "${EXTRA_ARGS:-}" ]; then
+          # shellcheck disable=SC2206
+          args+=($EXTRA_ARGS)
+        fi
+
+        echo "::group::inspectra ${args[*]}"
+        inspectra "${args[@]}"
+        echo "::endgroup::"
+
+    - name: Render (file mode)
+      if: inputs.mode == 'file'
+      shell: bash
+      env:
+        OPENCLI_JSON: ${{ inputs.opencli-json }}
+        XMLDOC: ${{ inputs.xmldoc }}
+        OUTPUT_DIR: ${{ inputs.output-dir }}
+        EXTRA_ARGS: ${{ inputs.extra-args }}
+      run: |
+        set -euo pipefail
+        args=(render file html "$OPENCLI_JSON" --overwrite)
+
+        if [ -n "$XMLDOC" ]; then
+          args+=(--xmldoc "$XMLDOC")
+        fi
+
+        args+=(--out-dir "$OUTPUT_DIR")
+
+        if [ -n "${EXTRA_ARGS:-}" ]; then
+          # shellcheck disable=SC2206
+          args+=($EXTRA_ARGS)
+        fi
+
+        echo "::group::inspectra ${args[*]}"
+        inspectra "${args[@]}"
+        echo "::endgroup::"
+
+    - name: Verify output
+      shell: bash
+      env:
+        OUTPUT_DIR: ${{ inputs.output-dir }}
+      run: |
+        set -euo pipefail
+        test -f "$OUTPUT_DIR/index.html"
+        grep -q './assets/' "$OUTPUT_DIR/index.html"
+        echo "InSpectra bundle verified at $OUTPUT_DIR"
