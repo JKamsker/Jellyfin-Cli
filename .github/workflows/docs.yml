@@ -1,0 +1,97 @@
+# Generate interactive CLI documentation with InSpectra and deploy to GitHub Pages.
+#
+# Once the InSpectra reusable workflow is published, this can be simplified to:
+#
+#   jobs:
+#     docs:
+#       uses: JKamsker/OpenCLI-Renderer/.github/workflows/inspectra-generate.yml@main
+#       permissions:
+#         pages: write
+#         id-token: write
+#       with:
+#         dotnet-tool: JellyfinCli
+#         cli-name: jf
+#         with-xmldoc: true
+#         deploy-pages: true
+
+name: Docs
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+          dotnet-quality: 'preview'
+
+      # Build and install the CLI from source so docs always match HEAD
+      - name: Build CLI
+        run: |
+          VERSION="0.0.0-docs"
+          dotnet build --no-restore -c Release /p:Version="$VERSION" || dotnet build -c Release /p:Version="$VERSION"
+          dotnet pack src/Jellyfin.Cli/Jellyfin.Cli.csproj --no-build -c Release -o ./artifacts /p:Version="$VERSION"
+
+      - name: Install CLI as global tool
+        run: dotnet tool install -g JellyfinCli --add-source ./artifacts --version "0.0.0-docs"
+
+      - name: Verify CLI
+        run: jf --version
+
+      # Install InSpectra and render docs
+      - name: Install InSpectra
+        run: |
+          dotnet tool install -g InSpectra.Gen
+          inspectra --version
+
+      - name: Render InSpectraUI
+        run: |
+          inspectra render exec html jf \
+            --with-xmldoc \
+            --overwrite \
+            --out-dir _site
+
+      - name: Verify output
+        run: |
+          test -f _site/index.html
+          grep -q './assets/' _site/index.html
+          echo "InSpectra bundle verified"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: inspectra-docs
+          path: _site
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: generate
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
