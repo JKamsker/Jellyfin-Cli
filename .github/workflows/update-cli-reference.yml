@@ -1,0 +1,57 @@
+name: Update CLI Reference
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/Jellyfin.Cli/**'
+      - 'src/Jellyfin.Cli.Api/**'
+      - '.github/workflows/update-cli-reference.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: update-cli-reference
+  cancel-in-progress: true
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Pinned to a SHA on JKamsker/InSpectra@main; bump when upstream
+      # ships changes you want to pick up.
+      - name: Render CLI reference (markdown monolith)
+        uses: JKamsker/InSpectra/.github/actions/render@6d1e9ecd324fb58557a5a2b693131a539418ce46
+        with:
+          mode: dotnet
+          project: src/Jellyfin.Cli
+          format: markdown-monolith
+          output-dir: docs/reference
+          dotnet-version: '10.0.x'
+          dotnet-quality: 'preview'
+
+      - name: Open PR if reference changed
+        uses: peter-evans/create-pull-request@v7
+        with:
+          add-paths: docs/reference/README.md
+          branch: docs/regenerate-cli-reference
+          delete-branch: true
+          commit-message: 'docs(reference): regenerate CLI reference'
+          title: 'docs(reference): regenerate CLI reference'
+          labels: |
+            documentation
+            automated
+          body: |
+            Auto-generated update to `docs/reference/README.md` via [InSpectra](https://github.com/JKamsker/InSpectra).
+
+            Triggered by commit ${{ github.sha }} on `${{ github.ref_name }}`.
+
+            If this PR is empty after merge it means the CLI surface is unchanged
+            from `main`; if you see a diff, review it carefully — it represents a
+            change to the public CLI contract.
