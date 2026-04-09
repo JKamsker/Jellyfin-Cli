@@ -32,7 +32,7 @@ jobs:
       # don't need it: Spectre.Console.Cli 0.53.1 already exposes
       # `cli opencli` and `cli xmldoc` natively for this project.
       - name: Render docs site
-        uses: JKamsker/InSpectra/.github/actions/render@ac940d4c996fb69052595850a87c928de2a474a5
+        uses: JKamsker/InSpectra/.github/actions/render@5f9f8949219fb171169fcfdc641de667ef9a6e4a
         with:
           mode: dotnet
           project: src/Jellyfin.Cli
