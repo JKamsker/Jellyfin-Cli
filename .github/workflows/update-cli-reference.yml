@@ -31,12 +31,13 @@ jobs:
       # `dotnet add package InSpectra.Cli`, which 404s on nuget.org. We
       # don't need it: Spectre.Console.Cli 0.53.1 already exposes
       # `cli opencli` and `cli xmldoc` natively for this project.
-      - name: Render CLI reference (markdown monolith)
-        uses: JKamsker/InSpectra/.github/actions/render@6d1e9ecd324fb58557a5a2b693131a539418ce46
+      - name: Render CLI reference (markdown hybrid)
+        uses: JKamsker/InSpectra/.github/actions/render@3f44dac8e74800a9df660b665035a0b287bbd85e
         with:
           mode: dotnet
           project: src/Jellyfin.Cli
-          format: markdown-monolith
+          format: markdown-hybrid
+          split-depth: '1'
           output-dir: docs/reference
           skip-inspectra-cli: 'true'
           dotnet-version: '10.0.x'
@@ -45,7 +46,7 @@ jobs:
       - name: Open PR if reference changed
         uses: peter-evans/create-pull-request@v7
         with:
-          add-paths: docs/reference/README.md
+          add-paths: docs/reference/**
           branch: docs/regenerate-cli-reference
           delete-branch: true
           commit-message: 'docs(reference): regenerate CLI reference'
@@ -54,7 +55,7 @@ jobs:
             documentation
             automated
           body: |
-            Auto-generated update to `docs/reference/README.md` via [InSpectra](https://github.com/JKamsker/InSpectra).
+            Auto-generated update to `docs/reference` via [InSpectra](https://github.com/JKamsker/InSpectra).
 
             Triggered by commit ${{ github.sha }} on `${{ github.ref_name }}`.
 
