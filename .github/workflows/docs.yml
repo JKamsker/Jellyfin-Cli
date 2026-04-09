@@ -16,12 +16,33 @@ concurrency:
 
 jobs:
   generate:
-    uses: ./.github/workflows/inspectra-generate.yml
-    with:
-      dotnet-tool: JellyfinCli
-      cli-name: jf
-      dotnet-version: '10.0.x'
-      dotnet-quality: 'preview'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Pinned to a SHA on JKamsker/InSpectra@main; bump when upstream
+      # ships changes you want to pick up.
+      #
+      # skip-inspectra-cli: the upstream action's dotnet mode tries to
+      # `dotnet add package InSpectra.Cli`, which 404s on nuget.org. We
+      # don't need it: Spectre.Console.Cli 0.53.1 already exposes
+      # `cli opencli` and `cli xmldoc` natively for this project.
+      - name: Render docs site
+        uses: JKamsker/InSpectra/.github/actions/render@3f44dac8e74800a9df660b665035a0b287bbd85e
+        with:
+          mode: dotnet
+          project: src/Jellyfin.Cli
+          format: html
+          output-dir: _site
+          skip-inspectra-cli: 'true'
+          dotnet-version: '10.0.x'
+          dotnet-quality: 'preview'
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
 
   deploy:
     needs: generate
@@ -30,12 +51,5 @@ jobs:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: inspectra-docs
-          path: _site
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site
       - uses: actions/deploy-pages@v4
         id: deploy
